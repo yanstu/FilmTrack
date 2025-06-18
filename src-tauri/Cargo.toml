@@ -1,0 +1,41 @@
+[package]
+name = "filmtrack"
+version = "0.1.0"
+description = "个人影视管理平台 - 追踪您的观影足迹"
+authors = ["FilmTrack Team"]
+license = "MIT"
+readme = "../README.md"
+homepage = "https://github.com/yourusername/filmtrack"
+repository = "https://github.com/yourusername/filmtrack"
+documentation = "https://github.com/yourusername/filmtrack/blob/main/README.md"
+keywords = ["tauri", "movie", "tv", "tracker", "manager"]
+categories = ["multimedia", "database", "gui"]
+edition = "2021"
+
+[package.metadata.tauri]
+name = "FilmTrack"
+description = "个人影视管理平台 - 追踪您的观影足迹"
+copyright = "Copyright © 2024 FilmTrack Team"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "filmtrack_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-opener = "2"
+tauri-plugin-sql = { version = "2", features = ["sqlite"] }
+tauri-plugin-single-instance = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1.0", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+

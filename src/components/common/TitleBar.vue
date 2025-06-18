@@ -1,0 +1,134 @@
+<template>
+  <div class="title-bar window-drag h-12 flex items-center justify-between bg-white/90 backdrop-blur-apple border-b border-gray-200" @contextmenu.prevent>
+    <!-- 左侧：Logo和标题 -->
+    <div class="flex items-center space-x-3 px-4">
+      <div class="w-6 h-6 flex items-center justify-center">
+        <img src="/logo.png" alt="FilmTrack Logo" class="w-6 h-6 object-contain" />
+      </div>
+      <h1 class="text-lg font-semibold text-gray-900 gradient-text">FilmTrack</h1>
+    </div>
+
+    <!-- 中间：占位 -->
+    <div class="flex-1"></div>
+
+    <!-- 右侧：窗口控制按钮 -->
+    <div class="flex items-center space-x-1 px-4 window-no-drag">
+      <button
+        @click="openSettings"
+        class="w-8 h-8 flex items-center justify-center rounded-md hover:bg-gray-200/60 transition-colors duration-200"
+        title="设置"
+      >
+        <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+        </svg>
+      </button>
+      
+      <button
+        @click="minimizeWindow"
+        class="w-8 h-8 flex items-center justify-center rounded-md hover:bg-gray-200/60 transition-colors duration-200"
+        title="最小化"
+      >
+        <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/>
+        </svg>
+      </button>
+      
+      <button
+        @click="closeWindow"
+        class="w-8 h-8 flex items-center justify-center rounded-md hover:bg-red-500/10 hover:text-red-600 transition-colors duration-200"
+        :title="getCloseButtonTitle()"
+      >
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { onMounted } from 'vue';
+import { getCurrentWindow } from '@tauri-apps/api/window';
+
+const appWindow = getCurrentWindow();
+
+// 获取应用设置
+const getAppSettings = () => {
+  const savedSettings = localStorage.getItem('filmtrack-settings');
+  if (savedSettings) {
+    try {
+      return JSON.parse(savedSettings);
+    } catch (error) {
+      console.error('加载设置失败:', error);
+    }
+  }
+  return { minimizeToTray: true }; // 默认设置
+};
+
+// 窗口控制方法
+const minimizeWindow = async () => {
+  try {
+    await appWindow.minimize();
+  } catch (error) {
+    console.error('最小化窗口失败:', error);
+  }
+};
+
+const openSettings = () => {
+  // 触发全局事件来打开设置
+  window.dispatchEvent(new CustomEvent('open-settings'));
+};
+
+const closeWindow = async () => {
+  try {
+    const settings = getAppSettings();
+    // 根据设置决定是隐藏到托盘还是直接退出
+    if (settings.minimizeToTray) {
+      await appWindow.hide();
+    } else {
+      await appWindow.close();
+    }
+  } catch (error) {
+    console.error('关闭窗口失败:', error);
+  }
+};
+
+const getCloseButtonTitle = () => {
+  const settings = getAppSettings();
+  return settings.minimizeToTray ? '最小化到托盘' : '退出程序';
+};
+
+onMounted(() => {
+  // 组件初始化完成
+});
+</script>
+
+<style scoped>
+.title-bar {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* 搜索框聚焦动画 */
+.search-input:focus {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* 窗口控制按钮动画 */
+button {
+  transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+button:active {
+  transform: scale(0.95);
+}
+
+/* 渐变文字效果 */
+.gradient-text {
+  background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+</style> 
