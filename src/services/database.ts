@@ -404,12 +404,22 @@ export class MovieDAO {
       const db = await DatabaseService.getInstance()
       const timestamp = await DatabaseUtils.getCurrentTimestamp()
       
+      console.log('数据库更新电影 - 输入数据:', {
+        id: movie.id,
+        title: movie.title,
+        current_episode: movie.current_episode,
+        status: movie.status
+      });
+      
       const query = `
         UPDATE movies SET 
           title = $1, overview = $2, poster_path = $3, backdrop_path = $4, 
           year = $5, tmdb_rating = $6, runtime = $7, genres = $8,
-          status = $9, personal_rating = $10, watch_count = $11, date_updated = $12, updated_at = $13
-        WHERE id = $14
+          status = $9, personal_rating = $10, watch_count = $11, 
+          current_episode = $12, current_season = $13, total_episodes = $14, total_seasons = $15,
+          air_status = $16, notes = $17, watch_source = $18,
+          date_updated = $19, updated_at = $20
+        WHERE id = $21
       `
       
       const params = [
@@ -424,12 +434,21 @@ export class MovieDAO {
         movie.status,
         (movie as any).personal_rating || null,
         (movie as any).watch_count || 0,
+        (movie as any).current_episode !== undefined ? (movie as any).current_episode : 0,
+        (movie as any).current_season !== undefined ? (movie as any).current_season : 1,
+        (movie as any).total_episodes || null,
+        (movie as any).total_seasons || null,
+        (movie as any).air_status || null,
+        (movie as any).notes || null,
+        (movie as any).watch_source || null,
         timestamp,
         timestamp,
         movie.id
       ]
       
+      console.log('数据库更新电影 - SQL参数:', params);
       await db.execute(query, params)
+      console.log('数据库更新电影 - 执行成功');
       
       return { 
         success: true, 

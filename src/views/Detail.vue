@@ -12,7 +12,8 @@
     <div v-else-if="!movie" class="flex items-center justify-center h-full">
       <div class="text-center">
         <svg class="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.664-.833-2.464 0L4.35 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.664-.833-2.464 0L4.35 16.5c-.77.833.192 2.5 1.732 2.5z" />
         </svg>
         <h3 class="text-lg font-medium text-gray-900 mb-2">影视作品不存在</h3>
         <p class="text-gray-600 mb-4">请检查链接是否正确</p>
@@ -26,24 +27,18 @@
       <div class="relative h-96 overflow-hidden">
         <!-- 背景图 -->
         <div class="absolute inset-0">
-          <CachedImage
-            v-if="backdropImages.length > 0"
-            :src="getImageURL(backdropImages[currentBackdropIndex], 'w1280')"
-            :alt="movie.title"
-            class-name="w-full h-full object-cover"
-            fallback="/placeholder-poster.svg"
-          />
+          <CachedImage v-if="backdropImages.length > 0"
+            :src="getImageURL(backdropImages[currentBackdropIndex], 'w1280')" :alt="movie.title"
+            class-name="w-full h-full object-cover" fallback="/placeholder-poster.svg" />
           <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent"></div>
         </div>
 
         <!-- 返回按钮 -->
         <div class="absolute top-6 left-6 z-10">
-          <button
-            @click="goBack"
-            class="p-2 bg-black/50 backdrop-blur-sm text-white rounded-full hover:bg-black/70 transition-colors duration-200"
-          >
+          <button @click="goBack"
+            class="p-2 bg-black/50 backdrop-blur-sm text-white rounded-full hover:bg-black/70 transition-colors duration-200">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
             </svg>
           </button>
         </div>
@@ -53,20 +48,16 @@
           <div class="flex items-end space-x-6">
             <!-- 海报 -->
             <div class="flex-shrink-0 cursor-pointer" @click="showPosterPreview">
-              <CachedImage
-                :src="getImageURL(movie.poster_path)"
-                :alt="movie.title"
+              <CachedImage :src="getImageURL(movie.poster_path)" :alt="movie.title"
                 class-name="w-48 h-72 object-cover rounded-lg shadow-xl hover:opacity-90 transition-opacity"
-                fallback="/placeholder-poster.svg"
-              />
+                fallback="/placeholder-poster.svg" />
             </div>
 
             <!-- 基本信息 -->
             <div class="flex-1 pb-4">
               <div class="mb-4">
                 <h1 class="text-4xl font-bold mb-2">{{ movie.title }}</h1>
-                <p v-if="movie.original_title && movie.original_title !== movie.title" 
-                   class="text-xl text-gray-300">
+                <p v-if="movie.original_title && movie.original_title !== movie.title" class="text-xl text-gray-300">
                   {{ movie.original_title }}
                 </p>
               </div>
@@ -96,7 +87,8 @@
                       'w-4 h-4',
                       movie.tmdb_rating >= i * 2 ? 'fill-current' : 'text-gray-500'
                     ]" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                      <path
+                        d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                     </svg>
                   </div>
                   <span class="text-lg font-semibold">{{ movie.tmdb_rating.toFixed(1) }}</span>
@@ -107,10 +99,11 @@
                   <div class="flex text-yellow-400 mr-2">
                     <svg v-for="i in 5" :key="i" :class="[
                       'w-4 h-4',
-                      movie.personal_rating >= i ? 'fill-current' : 
-                      movie.personal_rating >= i - 0.5 ? 'fill-current opacity-50' : 'text-gray-500'
+                      movie.personal_rating >= i ? 'fill-current' :
+                        movie.personal_rating >= i - 0.5 ? 'fill-current opacity-50' : 'text-gray-500'
                     ]" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                      <path
+                        d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                     </svg>
                   </div>
                   <span class="text-lg font-semibold">{{ formatRating(movie.personal_rating) }}/5.0</span>
@@ -122,11 +115,8 @@
                 <span class="text-sm text-gray-300">观看平台：</span>
                 <div class="inline-flex items-center">
                   <LinkIcon v-if="isValidUrl(movie.watch_source)" class="w-4 h-4 text-white mr-1" />
-                  <a
-                    v-if="isValidUrl(movie.watch_source)"
-                    @click="openExternalLink(movie.watch_source)"
-                    class="text-white font-medium hover:text-blue-300 transition-colors cursor-pointer"
-                  >
+                  <a v-if="isValidUrl(movie.watch_source)" @click="openExternalLink(movie.watch_source)"
+                    class="text-white font-medium hover:text-blue-300 transition-colors cursor-pointer">
                     {{ movie.watch_source }}
                   </a>
                   <span v-else class="text-white font-medium">{{ movie.watch_source }}</span>
@@ -165,13 +155,10 @@
                   <span class="font-semibold">{{ movie.current_episode || 0 }}/{{ movie.total_episodes || '?' }}</span>
                 </div>
                 <div class="w-full bg-gray-200 rounded-full h-3">
-                  <div 
-                    :class="[
-                      'h-3 rounded-full transition-all duration-300',
-                      getProgressColor(getWatchProgress())
-                    ]"
-                    :style="{ width: `${getWatchProgress()}%` }"
-                  ></div>
+                  <div :class="[
+                    'h-3 rounded-full transition-all duration-300',
+                    getProgressColor(getWatchProgress())
+                  ]" :style="{ width: `${getWatchProgress()}%` }"></div>
                 </div>
                 <div class="flex justify-between text-sm text-gray-500">
                   <span>{{ getWatchProgress() }}% 完成</span>
@@ -187,25 +174,18 @@
             <div class="card p-6">
               <h3 class="text-lg font-semibold text-gray-900 mb-4">操作</h3>
               <div class="space-y-3">
-                <button
-                  @click="editRecord"
-                  class="w-full flex items-center justify-center px-4 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors duration-200 font-medium"
-                >
+                <button @click="editRecord"
+                  class="w-full flex items-center justify-center px-4 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors duration-200 font-medium">
                   编辑记录
                 </button>
 
-                <button
-                  v-if="movie.type === 'tv' && movie.status !== 'completed'"
-                  @click="markEpisodeWatched"
-                  class="w-full flex items-center justify-center px-4 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors duration-200 font-medium"
-                >
+                <button v-if="movie.type === 'tv' && movie.status !== 'completed'" @click="markEpisodeWatched"
+                  class="w-full flex items-center justify-center px-4 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors duration-200 font-medium">
                   这集已看
                 </button>
 
-                <button
-                  @click="updateMovieInfo"
-                  class="w-full flex items-center justify-center px-4 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors duration-200 font-medium"
-                >
+                <button @click="updateMovieInfo"
+                  class="w-full flex items-center justify-center px-4 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors duration-200 font-medium">
                   刷新影视信息
                 </button>
               </div>
@@ -229,11 +209,8 @@
                 </div>
                 <div class="flex justify-between">
                   <span class="text-gray-600">TMDb ID</span>
-                  <a 
-                    :href="`https://www.themoviedb.org/${movie.type}/${movie.tmdb_id}`"
-                    target="_blank"
-                    class="font-medium text-blue-600 hover:text-blue-800"
-                  >
+                  <a :href="`https://www.themoviedb.org/${movie.type}/${movie.tmdb_id}`" target="_blank"
+                    class="font-medium text-blue-600 hover:text-blue-800">
                     {{ movie.tmdb_id }}
                   </a>
                 </div>
@@ -242,10 +219,8 @@
 
             <!-- 删除记录 -->
             <div class="card p-6 border-red-200">
-              <button
-                @click="deleteRecord"
-                class="w-full flex items-center justify-center px-4 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors duration-200 font-medium"
-              >
+              <button @click="deleteRecord"
+                class="w-full flex items-center justify-center px-4 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors duration-200 font-medium">
                 <TrashIcon class="w-4 h-4 mr-2" />
                 删除记录
               </button>
@@ -256,46 +231,24 @@
     </div>
 
     <!-- 编辑记录模态框 -->
-    <EditRecordModal
-      :is-open="editModalVisible"
-      :movie="movie"
-      @close="editModalVisible = false"
-      @save="handleSaveRecord"
-    />
+    <EditRecordModal :is-open="editModalVisible" :movie="movie" @close="editModalVisible = false"
+      @save="handleSaveRecord" />
 
     <!-- 海报预览模态框 -->
-    <Modal
-      :is-open="posterPreviewVisible"
-      type="info"
-      title="海报预览"
-      message=""
-      confirm-text="关闭"
-      @close="posterPreviewVisible = false"
-      @confirm="posterPreviewVisible = false"
-      :large="true"
-    >
+    <Modal :is-open="posterPreviewVisible" type="info" title="海报预览" message="" confirm-text="关闭"
+      @close="posterPreviewVisible = false" @confirm="posterPreviewVisible = false" :large="true">
       <template #content>
         <div class="flex justify-center">
-          <CachedImage
-            :src="getImageURL(movie?.poster_path, 'w780')"
-            :alt="movie?.title"
+          <CachedImage :src="getImageURL(movie?.poster_path, 'w780')" :alt="movie?.title"
             class-name="max-w-full max-h-[70vh] object-contain rounded-lg shadow-lg"
-            fallback="/placeholder-poster.svg"
-          />
+            fallback="/placeholder-poster.svg" />
         </div>
       </template>
     </Modal>
 
     <!-- 提示对话框 -->
-    <Modal
-      :is-open="dialog.visible"
-      :type="dialog.type"
-      :title="dialog.title"
-      :message="dialog.message"
-      :show-cancel="dialog.type === 'confirm'"
-      @close="dialog.visible = false"
-      @confirm="dialog.onConfirm"
-    />
+    <Modal :is-open="dialog.visible" :type="dialog.type" :title="dialog.title" :message="dialog.message"
+      :show-cancel="dialog.type === 'confirm'" @close="dialog.visible = false" @confirm="dialog.onConfirm" />
   </div>
 </template>
 
@@ -372,17 +325,19 @@ const editRecord = () => {
 
 const markEpisodeWatched = async () => {
   if (!movie.value || movie.value.type !== 'tv') return;
-  
+
   try {
     const newCurrentEpisode = (movie.value.current_episode || 0) + 1;
     const totalEpisodes = movie.value.total_episodes || 0;
-    
-    const updatedMovie = {
+
+    // 确保更新的对象包含所有必要的字段，并且格式与数据库期待的一致
+    const updatedMovie: Movie = {
       ...movie.value,
       current_episode: newCurrentEpisode,
+      date_updated: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
-    
+
     // 如果看到最后一集，将状态改为已看
     if (newCurrentEpisode >= totalEpisodes && totalEpisodes > 0) {
       updatedMovie.status = 'completed';
@@ -390,22 +345,30 @@ const markEpisodeWatched = async () => {
     } else {
       showDialog('success', '成功', `已标记第 ${newCurrentEpisode} 集为已观看`);
     }
-    
-    await movieStore.updateMovie(updatedMovie);
-    movie.value = updatedMovie;
+
+    console.log('准备更新电影数据:', updatedMovie);
+    const result = await movieStore.updateMovie(updatedMovie);
+
+    if (result.success) {
+      // 更新本地状态
+      movie.value = { ...updatedMovie };
+      console.log('电影数据更新成功');
+    } else {
+      throw new Error(result.error || '更新失败');
+    }
   } catch (error) {
     console.error('更新失败:', error);
-    showDialog('error', '更新失败', '更新失败，请重试');
+    showDialog('error', '更新失败', `更新失败：${error.message || error}`);
   }
 };
 
 const updateMovieInfo = async () => {
   if (!movie.value?.tmdb_id) return;
-  
+
   try {
     showDialog('info', '更新中', '正在从TMDb获取最新信息...');
-    
-    const details = movie.value.type === 'tv' 
+
+    const details = movie.value.type === 'tv'
       ? await tmdbAPI.getTVDetails(movie.value.tmdb_id)
       : await tmdbAPI.getMovieDetails(movie.value.tmdb_id);
 
@@ -421,15 +384,15 @@ const updateMovieInfo = async () => {
       air_status: (details as any).status,
       updated_at: new Date().toISOString()
     };
-    
+
     await movieStore.updateMovie(updatedMovie);
     movie.value = updatedMovie;
-    
+
     // 重新加载背景图片
     if (movie.value.backdrop_path) {
       backdropImages.value = [movie.value.backdrop_path];
     }
-    
+
     showDialog('success', '更新成功', '影视信息已更新');
   } catch (error) {
     console.error('更新失败:', error);
@@ -452,7 +415,7 @@ const handleSaveRecord = async (updatedMovie: Movie) => {
 
 const deleteRecord = async () => {
   if (!movie.value) return;
-  
+
   showDialog('confirm', '确认删除', `确定要删除《${movie.value.title}》的记录吗？此操作不可撤销。`, async () => {
     try {
       await movieStore.deleteMovie(movie.value!.id);
@@ -466,16 +429,16 @@ const deleteRecord = async () => {
 
 const loadBackdropImages = async () => {
   if (!movie.value?.tmdb_id) return;
-  
+
   try {
     // 获取影视作品的剧照
-    const endpoint = movie.value.type === 'tv' 
+    const endpoint = movie.value.type === 'tv'
       ? `/tv/${movie.value.tmdb_id}/images`
       : `/movie/${movie.value.tmdb_id}/images`;
-    
+
     const response = await fetch(`https://api.themoviedb.org/3${endpoint}?api_key=06e492fa8930c108b57945b4fda6f397`);
     const data = await response.json();
-    
+
     if (data.backdrops && data.backdrops.length > 0) {
       // 使用最佳质量的剧照，按投票数排序，取前3张
       backdropImages.value = data.backdrops
@@ -500,7 +463,7 @@ const dialog = ref({
   type: 'info' as 'success' | 'error' | 'warning' | 'info' | 'confirm',
   title: '',
   message: '',
-  onConfirm: () => {}
+  onConfirm: () => { }
 });
 
 const showDialog = (type: typeof dialog.value.type, title: string, message: string, onConfirm?: () => void) => {
@@ -520,14 +483,14 @@ const openExternalLink = (url: string) => {
 // 初始化
 onMounted(async () => {
   const movieId = route.params.id as string;
-  
+
   try {
     isLoading.value = true;
-    
+
     // 获取电影信息
     await movieStore.fetchMovies();
     movie.value = movieStore.movies.find(m => m.id === movieId) || null;
-    
+
     // 加载背景图片
     if (movie.value) {
       await loadBackdropImages();
@@ -560,4 +523,4 @@ onMounted(async () => {
 button:hover {
   transform: scale(1.05);
 }
-</style> 
+</style>
