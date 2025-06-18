@@ -2,12 +2,11 @@
   <div class="movie-card bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-all duration-300 group cursor-pointer">
     <!-- 海报区域 -->
     <div class="relative aspect-[2/3] overflow-hidden">
-      <img
+      <CachedImage
         :src="getImageURL(movie.poster_path || '')"
         :alt="movie.title"
-        class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-        loading="lazy"
-        @error="handleImageError"
+        class-name="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+        fallback="/placeholder-poster.svg"
       />
       
       <!-- 状态徽章 -->
@@ -117,8 +116,9 @@ import { computed } from 'vue';
 import { tmdbAPI } from '../../utils/api';
 import { APP_CONFIG } from '../../../config/app.config';
 import type { ParsedMovie } from '../../types';
-import { getStatusLabel, formatRating } from '../../utils/constants';
+import { getStatusLabel, formatRating, getTypeLabel, getStatusBadgeClass } from '../../utils/constants';
 import { Star as StarIcon } from 'lucide-vue-next';
+import CachedImage from '../ui/CachedImage.vue';
 
 interface Props {
   movie: ParsedMovie;
@@ -140,22 +140,7 @@ const getWatchProgress = () => {
 
 // 方法
 const getImageURL = (path: string | undefined) => {
-  return path ? tmdbAPI.getImageURL(path, 'w342') : '/placeholder-poster.svg';
-};
-
-const getTypeLabel = (type: string) => {
-  return APP_CONFIG.features.mediaTypes[type as keyof typeof APP_CONFIG.features.mediaTypes] || type;
-};
-
-const getStatusBadgeClass = (status: string) => {
-  const classes = {
-    watching: 'bg-green-100/90 text-green-800 border border-green-200',
-    completed: 'bg-blue-100/90 text-blue-800 border border-blue-200',
-    planned: 'bg-yellow-100/90 text-yellow-800 border border-yellow-200',
-    paused: 'bg-orange-100/90 text-orange-800 border border-orange-200',
-    dropped: 'bg-red-100/90 text-red-800 border border-red-200'
-  };
-  return classes[status as keyof typeof classes] || 'bg-gray-100/90 text-gray-800 border border-gray-200';
+  return tmdbAPI.getImageURL(path, 'w342');
 };
 
 const formatDate = (dateString: string) => {

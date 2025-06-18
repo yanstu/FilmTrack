@@ -56,11 +56,6 @@ export const getStatusBadgeClass = (status: string): string => {
   return classes[status as keyof typeof classes] || 'bg-gray-100 text-gray-800';
 };
 
-export const getImageURL = (path: string | null): string => {
-  if (!path) return '/placeholder-poster.svg';
-  return `${APP_CONFIG.tmdb.imageBaseUrl}/${APP_CONFIG.tmdb.imageSizes.poster}${path}`;
-};
-
 export const getYear = (dateString?: string): number | undefined => {
   if (!dateString) return undefined;
   return new Date(dateString).getFullYear();
@@ -133,4 +128,6 @@ export const DEFAULTS = {
   rating: 0,
   status: 'planned',
   pageSize: 20
-}; 
+};
+
+ 

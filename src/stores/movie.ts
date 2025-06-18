@@ -14,8 +14,6 @@ import type {
   TMDbMovieDetail,
   WatchHistory,
   Statistics,
-  Tag,
-  MovieTag,
   AddMovieForm,
   UpdateMovieForm,
   WatchHistoryForm,
@@ -76,9 +74,6 @@ export const useMovieStore = defineStore('movie', () => {
 
   // 观看历史
   const watchHistory = ref<WatchHistory[]>([]);
-  
-  // 标签
-  const tags = ref<Tag[]>([]);
 
   // ==================== 计算属性 ====================
   
@@ -502,53 +497,6 @@ export const useMovieStore = defineStore('movie', () => {
   };
   
   /**
-   * 获取标签
-   */
-  const fetchTags = async (): Promise<ApiResponse<Tag[]>> => {
-    return withApiResponse(async () => {
-      const response = await MovieDAO.getTags();
-      if (response.success && response.data) {
-        tags.value = response.data;
-        return response.data;
-      } else {
-        throw new Error(response.error || '获取标签失败');
-      }
-    }, {
-      onError: (err) => {
-        error.value = err;
-        console.error('获取标签失败:', err);
-      }
-    });
-  };
-  
-  /**
-   * 添加电影标签关联
-   */
-  const addMovieTag = async (movieId: string, tagId: string): Promise<ApiResponse<void>> => {
-    return withApiResponse(async () => {
-      const response = await MovieDAO.addMovieTag(movieId, tagId);
-      if (!response.success) {
-        throw new Error(response.error || '添加标签关联失败');
-      }
-    }, {
-      onError: (err) => {
-        error.value = err;
-        console.error('添加标签关联失败:', err);
-      }
-    });
-  };
-
-  /**
-   * 获取电影标签
-   */
-  const getMovieTags = async (movieId: string): Promise<ApiResponse<Tag[]>> => {
-    return withApiResponse(async () => {
-      // 这里应该调用相应的DAO方法，暂时返回空数组
-      return [];
-    });
-  };
-  
-  /**
    * 清理错误信息
    */
   const clearError = () => {
@@ -583,7 +531,6 @@ export const useMovieStore = defineStore('movie', () => {
     searchLoading.value = false;
     popularLoading.value = false;
     watchHistory.value = [];
-    tags.value = [];
   };
 
   // ==================== 导出 ====================
@@ -602,7 +549,6 @@ export const useMovieStore = defineStore('movie', () => {
     searchLoading,
     popularLoading,
     watchHistory,
-    tags,
     
     // 计算属性
     filteredCount,
@@ -635,9 +581,6 @@ export const useMovieStore = defineStore('movie', () => {
     filterByType,
     filterByStatus,
     fetchWatchHistory,
-    fetchTags,
-    addMovieTag,
-    getMovieTags,
     clearError,
     resetStore
   };

@@ -182,21 +182,6 @@ export interface WatchHistory extends BaseEntity {
   movie?: Movie; // 关联的电影信息
 }
 
-/** 标签 */
-export interface Tag extends BaseEntity {
-  id: string;
-  name: string;
-  color: string;
-  description?: string;
-}
-
-/** 影视作品标签关联 */
-export interface MovieTag {
-  movie_id: string;
-  tag_id: string;
-  created_at: string;
-}
-
 /** 评论/评价 */
 export interface Review extends BaseEntity {
   id: string;

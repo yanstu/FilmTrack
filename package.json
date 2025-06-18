@@ -49,6 +49,7 @@
     "lucide-vue-next": "^0.514.0",
     "picomatch": "^4.0.2",
     "pinia": "^3.0.3",
+    "pinyin-pro": "^3.26.0",
     "rollup": "^4.43.0",
     "tinyglobby": "^0.2.14",
     "vue": "^3.5.13",

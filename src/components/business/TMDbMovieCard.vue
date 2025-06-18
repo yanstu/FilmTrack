@@ -2,11 +2,11 @@
   <div class="tmdb-card bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-all duration-300 group">
     <!-- 海报区域 -->
     <div class="relative aspect-[2/3] overflow-hidden">
-      <img
+      <CachedImage
         :src="getImageURL(movie.poster_path || '')"
         :alt="movie.title || movie.name || ''"
-        class="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
-        @error="handleImageError"
+        class-name="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
+        fallback="/placeholder-poster.svg"
       />
       
       <!-- 类型徽章 -->
@@ -136,6 +136,7 @@ import { ref, computed } from 'vue';
 import { tmdbAPI } from '../../utils/api';
 import { APP_CONFIG } from '../../../config/app.config';
 import type { TMDbMovie } from '../../types';
+import CachedImage from '../ui/CachedImage.vue';
 
 interface Props {
   movie: TMDbMovie;
@@ -157,7 +158,7 @@ const isAdding = ref(false);
 
 // 方法
 const getImageURL = (path: string | undefined) => {
-  return path ? tmdbAPI.getImageURL(path, 'w342') : '/placeholder-poster.svg';
+  return tmdbAPI.getImageURL(path, 'w342');
 };
 
 const getTypeLabel = (mediaType: string | undefined) => {

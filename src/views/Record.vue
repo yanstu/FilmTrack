@@ -14,19 +14,32 @@
           搜索影视作品
         </h2>
         
-              <div class="relative">
-                <input
-                  v-model="tmdbSearchQuery"
+                      <div class="relative">
+          <input
+            v-model="tmdbSearchQuery"
             @input="handleTMDbSearch"
-                  type="text"
-                  placeholder="搜索电影或电视剧..."
+            @keydown.enter="selectFirstResult"
+            type="text"
+            placeholder="搜索电影或电视剧，支持中英文..."
             class="w-full px-4 py-3 pl-12 rounded-xl bg-white/80 backdrop-blur-sm 
                    border border-gray-200/50 text-gray-900 placeholder-gray-500
                    focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100
                    hover:border-gray-300/70 hover:bg-white/90 transition-all duration-200"
-                />
+          />
           <SearchIcon :size="20" class="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" />
-              </div>
+          
+          <!-- 搜索快捷提示 -->
+          <div v-if="!tmdbSearchQuery && showSearchTips" 
+               class="absolute z-50 w-full mt-1 bg-white rounded-xl shadow-lg border border-gray-200 p-4">
+            <p class="text-sm text-gray-600 mb-2">搜索提示：</p>
+            <ul class="text-xs text-gray-500 space-y-1">
+              <li>• 支持中文名称：如"流浪地球"、"星际穿越"</li>
+              <li>• 支持英文原名：如"Interstellar"、"Avatar"</li>
+              <li>• 支持年份搜索：如"2023电影"</li>
+              <li>• 按回车键选择第一个结果</li>
+            </ul>
+          </div>
+        </div>
               
         <!-- 搜索状态提示 -->
         <div v-if="tmdbSearchLoading" class="mt-4 p-4 rounded-xl bg-blue-50/60 border border-blue-200/50">
@@ -101,10 +114,11 @@
         <div class="lg:col-span-1">
           <div class="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-gray-200/50">
             <div class="aspect-[2/3] rounded-xl overflow-hidden bg-gray-100 cursor-pointer hover:shadow-lg transition-all duration-200" @click="showImagePreview">
-              <img
+              <CachedImage
                 :src="getImageURL(form.poster_path)"
                 :alt="form.title"
-                class="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                class-name="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                fallback="/placeholder-poster.svg"
               />
             </div>
               </div>
@@ -130,7 +144,7 @@
               <div class="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <span class="text-gray-500">类型：</span>
-                  <span class="text-gray-900">{{ form.type ? getTypeLabel(form.type) : '暂无' }}</span>
+                  <span class="text-gray-900">{{ getTypeLabel(form.type) }}</span>
                 </div>
               <div>
                   <span class="text-gray-500">年份：</span>
@@ -315,10 +329,11 @@
     >
       <template #content>
         <div class="flex justify-center">
-          <img
+          <CachedImage
             :src="getImageURL(form.poster_path, 'w780')"
             :alt="form.title"
-            class="max-w-full max-h-[70vh] object-contain rounded-lg shadow-lg"
+            class-name="max-w-full max-h-[70vh] object-contain rounded-lg shadow-lg"
+            fallback="/placeholder-poster.svg"
           />
         </div>
       </template>
@@ -338,12 +353,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useMovieStore } from '../stores/movie';
 import { tmdbAPI, debounce } from '../utils/api';
 import { APP_CONFIG } from '../../config/app.config';
-import { getAirStatusLabel } from '../utils/constants';
+import { getAirStatusLabel, getYear, getTypeLabel, getStatusLabel, getStatusBadgeClass } from '../utils/constants';
 import type { TMDbMovie, TMDbMovieDetail } from '../types';
 import HeadlessSelect from '../components/ui/HeadlessSelect.vue';
 import StarRating from '../components/ui/StarRating.vue';
@@ -354,6 +369,7 @@ import {
   Clipboard as ClipboardIcon,
   Star as StarIcon
 } from 'lucide-vue-next';
+import CachedImage from '../components/ui/CachedImage.vue';
 
 const router = useRouter();
 const movieStore = useMovieStore();
@@ -364,6 +380,7 @@ const tmdbResults = ref<TMDbMovie[]>([]);
 const tmdbSearchLoading = ref(false);
 const isSubmitting = ref(false);
 const imagePreviewVisible = ref(false);
+const showSearchTips = ref(false);
 
 // 对话框状态
 const dialog = ref({
@@ -411,33 +428,7 @@ const statusOptions = [
 
 // 工具函数
 const getImageURL = (path: string | null, size: string = 'w500'): string => {
-  if (!path) return '/placeholder-poster.svg';
   return tmdbAPI.getImageURL(path, size);
-};
-
-const getYear = (dateString?: string): number | undefined => {
-  if (!dateString) return undefined;
-  return new Date(dateString).getFullYear();
-};
-
-const getTypeLabel = (type?: string): string => {
-  if (!type) return '未知';
-  return APP_CONFIG.features.mediaTypes[type as keyof typeof APP_CONFIG.features.mediaTypes] || '未知';
-};
-
-const getStatusLabel = (status: string): string => {
-  return APP_CONFIG.features.watchStatus[status as keyof typeof APP_CONFIG.features.watchStatus] || status;
-};
-
-const getStatusBadgeClass = (status: string) => {
-  const classes = {
-    watching: 'bg-green-100 text-green-800',
-    completed: 'bg-blue-100 text-blue-800',
-    planned: 'bg-yellow-100 text-yellow-800',
-    paused: 'bg-orange-100 text-orange-800',
-    dropped: 'bg-red-100 text-red-800'
-  };
-  return classes[status as keyof typeof classes] || 'bg-gray-100 text-gray-800';
 };
 
 const setToLastEpisode = () => {
@@ -447,6 +438,12 @@ const setToLastEpisode = () => {
 };
 
 // 方法
+const selectFirstResult = () => {
+  if (tmdbResults.value.length > 0) {
+    selectTMDbResult(tmdbResults.value[0]);
+  }
+};
+
 const handleTMDbSearch = debounce(async () => {
   if (tmdbSearchQuery.value.length < 2) {
     tmdbResults.value = [];
@@ -480,7 +477,7 @@ const selectTMDbResult = async (result: TMDbMovie) => {
 
     form.value.title = detail.title || detail.name || '';
     form.value.original_title = detail.original_title || detail.original_name || '';
-  form.value.type = result.media_type === 'movie' ? 'movie' : 'tv';
+    form.value.type = result.media_type === 'movie' ? 'movie' : 'tv';
     form.value.year = getYear(detail.release_date || detail.first_air_date);
     form.value.overview = detail.overview || '';
     form.value.tmdb_id = detail.id;
@@ -494,8 +491,21 @@ const selectTMDbResult = async (result: TMDbMovie) => {
       form.value.air_status = detail.status;
     }
 
-  tmdbSearchQuery.value = '';
-  tmdbResults.value = [];
+    // 主动缓存图片
+    if (detail.poster_path) {
+      const imageUrl = tmdbAPI.getImageURL(detail.poster_path, 'w500');
+      try {
+        // 动态导入并缓存图片
+        const { prefetchImages } = await import('../utils/imageCache');
+        await prefetchImages([imageUrl]);
+        console.log('图片已预缓存:', imageUrl);
+      } catch (error) {
+        console.warn('预缓存图片失败:', error);
+      }
+    }
+
+    tmdbSearchQuery.value = '';
+    tmdbResults.value = [];
   } catch (error) {
     console.error('获取详细信息失败:', error);
     showDialog('error', '错误', '获取影视详细信息失败，请重试');
@@ -607,6 +617,13 @@ onMounted(async () => {
   // 确保加载影视作品数据用于重复检测
   if (!movieStore.hasMovies) {
     await movieStore.fetchMovies();
+  }
+});
+
+// 监听状态变化，如果选择已看且是电视剧，自动设置当前集数为最后一集
+watch(() => form.value.status, (newStatus) => {
+  if (newStatus === 'completed' && form.value.type === 'tv' && form.value.total_episodes) {
+    form.value.current_episode = form.value.total_episodes;
   }
 });
 </script>

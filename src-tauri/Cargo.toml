@@ -15,7 +15,7 @@ edition = "2021"
 [package.metadata.tauri]
 name = "FilmTrack"
 description = "个人影视管理平台 - 追踪您的观影足迹"
-copyright = "Copyright © 2024 FilmTrack Team"
+copyright = "Copyright © 2025 FilmTrack Team"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -38,4 +38,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 uuid = { version = "1.0", features = ["v4"] }
 chrono = { version = "0.4", features = ["serde"] }
+reqwest = { version = "0.11", features = ["json"] }
+tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
+base64 = "0.21"
 

@@ -13,7 +13,6 @@ import type {
   TMDbMovieDetail,
   ParsedMovie,
   WatchHistory,
-  Tag,
   ApiResponse,
   Movie,
   Statistics
@@ -22,7 +21,6 @@ import {
   DatabaseService, 
   MovieDAO, 
   StatisticsDAO,
-  TagDAO
 } from '../services/database'
 
 // 类型别名
@@ -77,7 +75,21 @@ export const tmdbAPI = {
 
   // 获取图片URL
   getImageURL(path: string, size: string = 'w500'): string {
-    return `${APP_CONFIG.tmdb.imageBaseUrl}/${size}${path}`
+    if (!path) {
+      return '/placeholder-poster.svg';
+    }
+    
+    const imageUrl = `${APP_CONFIG.tmdb.imageBaseUrl}/${size}${path}`;
+    return imageUrl;
+  },
+
+  // 获取缓存图片URL（异步版本）
+  async getCachedImageURL(path: string, size: string = 'w500'): Promise<string> {
+    const imageUrl = `${APP_CONFIG.tmdb.imageBaseUrl}/${size}${path}`;
+    
+    // 动态导入图片缓存工具（避免循环依赖）
+    const { getCachedImageUrl } = await import('./imageCache');
+    return getCachedImageUrl(imageUrl);
   },
 
   // 获取类型列表
@@ -166,11 +178,6 @@ export const databaseAPI = {
   async getStatistics() {
     return await StatisticsDAO.getStatistics()
   },
-
-  // 获取标签
-  async getTags() {
-    return await TagDAO.getTags()
-  }
 }
 
 // ==================== 响应包装器 ====================

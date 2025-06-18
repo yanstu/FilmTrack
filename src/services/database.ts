@@ -10,7 +10,6 @@ import {
   Movie, 
   WatchHistory, 
   Statistics,
-  Tag,
   ApiResponse 
 } from '../types'
 
@@ -48,9 +47,17 @@ export class DatabaseService {
 
   // 确保表结构包含所有必要字段
   static async ensureTableStructure(): Promise<void> {
-    if (!this.instance) return
-    
     try {
+      const db = await this.getInstance()
+      
+      // 检查是否有执行权限
+      try {
+        await db.execute('SELECT 1') // 简单的权限测试
+      } catch (permissionError) {
+        console.error('数据库权限不足，请检查Tauri配置:', permissionError)
+        throw new Error('数据库权限不足，无法执行SQL命令。请检查tauri.conf.json中的SQL权限配置。')
+      }
+      
       // 先尝试创建表（如果不存在）
       const createTables = [
         `CREATE TABLE IF NOT EXISTS movies (
@@ -81,34 +88,13 @@ export class DatabaseService {
           date_updated TEXT,
           created_at TEXT,
           updated_at TEXT
-        )`,
-        
-
-        
-        `CREATE TABLE IF NOT EXISTS tags (
-          id TEXT PRIMARY KEY,
-          name TEXT UNIQUE NOT NULL,
-          color TEXT DEFAULT '#3B82F6',
-          description TEXT,
-          created_at TEXT,
-          updated_at TEXT
-        )`,
-        
-        `CREATE TABLE IF NOT EXISTS movie_tags (
-          id TEXT PRIMARY KEY DEFAULT (hex(randomblob(16))),
-          movie_id TEXT NOT NULL,
-          tag_id TEXT NOT NULL,
-          created_at TEXT,
-          FOREIGN KEY (movie_id) REFERENCES movies (id) ON DELETE CASCADE,
-          FOREIGN KEY (tag_id) REFERENCES tags (id) ON DELETE CASCADE,
-          UNIQUE(movie_id, tag_id)
         )`
       ]
       
       // 执行表创建
       for (const sql of createTables) {
         try {
-          await this.instance.execute(sql)
+          await db.execute(sql)
           console.log('表创建成功')
         } catch (error) {
           console.warn('表创建失败（可能已存在）:', error)
@@ -136,19 +122,12 @@ export class DatabaseService {
         'ALTER TABLE movies ADD COLUMN notes TEXT',
         'ALTER TABLE movies ADD COLUMN created_at TEXT',
         'ALTER TABLE movies ADD COLUMN updated_at TEXT',
-        
-
-        
-        // tags表的字段升级
-        'ALTER TABLE tags ADD COLUMN description TEXT',
-        'ALTER TABLE tags ADD COLUMN updated_at TEXT',
-        'ALTER TABLE tags ADD COLUMN created_at TEXT',
       ]
       
       // 尝试执行ALTER命令，忽略已存在字段的错误
       for (const command of alterCommands) {
         try {
-          await this.instance.execute(command)
+          await db.execute(command)
         } catch (error) {
           // 忽略"duplicate column name"错误，这是正常的
           if (!String(error).includes('duplicate column name')) {
@@ -162,7 +141,7 @@ export class DatabaseService {
         const currentTime = new Date().toISOString()
         
         // 更新movies表的时间戳字段
-        await this.instance.execute(`
+        await db.execute(`
           UPDATE movies SET 
             date_added = COALESCE(date_added, ?),
             date_updated = COALESCE(date_updated, ?),
@@ -170,24 +149,6 @@ export class DatabaseService {
             updated_at = COALESCE(updated_at, ?)
           WHERE date_added IS NULL OR date_updated IS NULL OR created_at IS NULL OR updated_at IS NULL
         `, [currentTime, currentTime, currentTime, currentTime])
-        
-
-        
-        // 更新tags表的时间戳字段
-        await this.instance.execute(`
-          UPDATE tags SET 
-            created_at = COALESCE(created_at, ?),
-            updated_at = COALESCE(updated_at, ?)
-          WHERE created_at IS NULL OR updated_at IS NULL
-        `, [currentTime, currentTime])
-        
-        // 更新movie_tags表的时间戳字段
-        await this.instance.execute(`
-          UPDATE movie_tags SET 
-            created_at = COALESCE(created_at, ?)
-          WHERE created_at IS NULL
-        `, [currentTime])
-        
       } catch (error) {
         console.warn('数据迁移失败:', error)
       }
@@ -197,40 +158,14 @@ export class DatabaseService {
         'CREATE INDEX IF NOT EXISTS idx_movies_status ON movies(status)',
         'CREATE INDEX IF NOT EXISTS idx_movies_type ON movies(type)',
         'CREATE INDEX IF NOT EXISTS idx_movies_tmdb_id ON movies(tmdb_id)',
-        'CREATE INDEX IF NOT EXISTS idx_movies_date_updated ON movies(date_updated)',
-        'CREATE INDEX IF NOT EXISTS idx_movie_tags_movie_id ON movie_tags(movie_id)',
-        'CREATE INDEX IF NOT EXISTS idx_movie_tags_tag_id ON movie_tags(tag_id)'
+        'CREATE INDEX IF NOT EXISTS idx_movies_date_updated ON movies(date_updated)'
       ]
       
       for (const indexCommand of indexCommands) {
         try {
-          await this.instance.execute(indexCommand)
+          await db.execute(indexCommand)
         } catch (error) {
           console.warn('索引创建失败:', indexCommand, error)
-        }
-      }
-      
-      // 插入默认标签
-      const defaultTags = [
-        { name: '动作', color: '#EF4444' },
-        { name: '喜剧', color: '#F59E0B' },
-        { name: '剧情', color: '#8B5CF6' },
-        { name: '科幻', color: '#06B6D4' },
-        { name: '恐怖', color: '#1F2937' },
-        { name: '爱情', color: '#EC4899' },
-        { name: '悬疑', color: '#6366F1' },
-        { name: '动画', color: '#10B981' }
-      ]
-      
-      for (const tag of defaultTags) {
-        try {
-          const currentTime = new Date().toISOString()
-          await this.instance.execute(`
-            INSERT OR IGNORE INTO tags (id, name, color, created_at, updated_at) 
-            VALUES (hex(randomblob(16)), ?, ?, ?, ?)
-          `, [tag.name, tag.color, currentTime, currentTime])
-        } catch (error) {
-          console.warn('默认标签插入失败:', error)
         }
       }
       
@@ -260,6 +195,18 @@ export class DatabaseService {
       console.log('数据库初始化完成')
     } catch (error) {
       console.error('数据库初始化失败:', error)
+      
+      // 如果是权限问题，提供更明确的错误信息
+      if (String(error).includes('sql.execute not allowed') || String(error).includes('权限不足')) {
+        throw new Error('数据库权限配置错误：\n' +
+          '1. 请确保 src-tauri/capabilities/main.json 中包含以下权限：\n' +
+          '   - "sql:allow-execute"\n' +
+          '   - "sql:allow-select"\n' +
+          '   - "sql:allow-load"\n' +
+          '2. 重新启动应用以应用权限配置\n' +
+          '3. 如果问题仍然存在，请检查 Tauri 版本是否兼容')
+      }
+      
       throw error
     }
   }
@@ -366,7 +313,6 @@ export class MovieDAO {
       const movie: Movie = {
         ...row,
         genres: DatabaseUtils.parseJsonField<string[]>(row.genres),
-        tags: DatabaseUtils.parseJsonField<string[]>(row.tags)
       }
       
       return { success: true, data: movie }
@@ -509,26 +455,6 @@ export class MovieDAO {
   static async getAllMovies(): Promise<ApiResponse<Movie[]>> {
     return this.getMovies()
   }
-
-  // 获取标签
-  static async getTags(): Promise<ApiResponse<Tag[]>> {
-    return TagDAO.getTags()
-  }
-
-  // 添加电影标签关联
-  static async addMovieTag(movieId: string, tagId: string): Promise<ApiResponse<string>> {
-    try {
-      const db = await DatabaseService.getInstance()
-      await db.execute(
-        'INSERT INTO movie_tags (movie_id, tag_id) VALUES ($1, $2)',
-        [movieId, tagId]
-      )
-      return { success: true, data: '电影标签关联添加成功' }
-    } catch (error) {
-      return { success: false, error: `添加电影标签关联失败: ${error}` }
-    }
-  }
-
 }
 
 /**
@@ -569,56 +495,3 @@ export class StatisticsDAO {
     }
   }
 }
-
-/**
- * 标签数据访问对象
- */
-export class TagDAO {
-  // 获取所有标签
-  static async getTags(): Promise<ApiResponse<Tag[]>> {
-    try {
-      const db = await DatabaseService.getInstance()
-      const result = await db.select('SELECT * FROM tags ORDER BY name')
-      return { success: true, data: result as Tag[] }
-    } catch (error) {
-      return { success: false, error: `获取标签失败: ${error}` }
-    }
-  }
-
-  // 添加标签
-  static async addTag(name: string, color?: string): Promise<ApiResponse<Tag>> {
-    try {
-      const db = await DatabaseService.getInstance()
-      const id = await DatabaseUtils.generateUuid()
-      const timestamp = await DatabaseUtils.getCurrentTimestamp()
-      
-      await db.execute(
-        'INSERT INTO tags (id, name, color, created_at, updated_at) VALUES ($1, $2, $3, $4, $5)',
-        [id, name, color || null, timestamp, timestamp]
-      )
-      
-      const tag: Tag = {
-        id,
-        name,
-        color: color || null,
-        created_at: timestamp,
-        updated_at: timestamp
-      }
-      
-      return { success: true, data: tag }
-    } catch (error) {
-      return { success: false, error: `添加标签失败: ${error}` }
-    }
-  }
-
-  // 删除标签
-  static async deleteTag(tagId: string): Promise<ApiResponse<string>> {
-    try {
-      const db = await DatabaseService.getInstance()
-      await db.execute('DELETE FROM tags WHERE id = $1', [tagId])
-      return { success: true, data: '标签删除成功' }
-    } catch (error) {
-      return { success: false, error: `删除标签失败: ${error}` }
-    }
-  }
-} 

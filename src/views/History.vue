@@ -1,7 +1,7 @@
 <template>
   <div class="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50">
     <!-- 顶部区域 -->
-    <div class="sticky top-0 z-20 bg-white/80 backdrop-blur-apple border-b border-gray-200/50">
+    <div class="sticky top-0 z-20 bg-white/70 backdrop-blur-lg border-b border-gray-200/30">
       <div class="container mx-auto px-6 py-6">
         <!-- 页面标题和统计 -->
         <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
@@ -55,8 +55,12 @@
                 <div class="timeline-content">
                   <div class="movie-card">
                     <div class="movie-poster">
-                      <img :src="getImageURL(movie.poster_path)" :alt="movie.title" class="poster-image"
-                        @error="handleImageError" />
+                      <CachedImage
+                        :src="getImageURL(movie.poster_path)"
+                        :alt="movie.title"
+                        class-name="poster-image"
+                        fallback="/placeholder-poster.svg"
+                      />
                       <div class="poster-overlay" style="position: absolute;">
                         <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -144,9 +148,10 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useMovieStore } from '../stores/movie';
 import { tmdbAPI } from '../utils/api';
-import { formatRating } from '../utils/constants';
+import { formatRating, getTypeLabel, getStatusLabel, getStatusBadgeClass } from '../utils/constants';
 import { APP_CONFIG } from '../../config/app.config';
 import type { Movie } from '../types';
+import CachedImage from '../components/ui/CachedImage.vue';
 
 const router = useRouter();
 const movieStore = useMovieStore();
@@ -195,31 +200,12 @@ const navigateToDetail = (id: string) => {
 };
 
 const getImageURL = (path: string | undefined) => {
-  return path ? tmdbAPI.getImageURL(path, 'w185') : '/placeholder-poster.jpg';
+  return tmdbAPI.getImageURL(path, 'w185');
 };
 
 const handleImageError = (event: Event) => {
   const target = event.target as HTMLImageElement;
-  target.src = '/placeholder-poster.jpg';
-};
-
-const getTypeLabel = (type: string) => {
-  return APP_CONFIG.features.mediaTypes[type as keyof typeof APP_CONFIG.features.mediaTypes] || type;
-};
-
-const getStatusLabel = (status: string) => {
-  return APP_CONFIG.features.watchStatus[status as keyof typeof APP_CONFIG.features.watchStatus] || status;
-};
-
-const getStatusBadgeClass = (status: string) => {
-  const classes = {
-    watching: 'bg-green-100 text-green-800',
-    completed: 'bg-blue-100 text-blue-800',
-    planned: 'bg-yellow-100 text-yellow-800',
-    paused: 'bg-orange-100 text-orange-800',
-    dropped: 'bg-red-100 text-red-800'
-  };
-  return classes[status as keyof typeof classes] || 'bg-gray-100 text-gray-800';
+  target.src = '/placeholder-poster.svg';
 };
 
 const formatTime = (dateString: string) => {
@@ -280,7 +266,8 @@ onMounted(async () => {
 }
 
 .timeline-date {
-  @apply flex items-center justify-between mb-6 sticky top-24 z-10 bg-white/95 backdrop-blur-sm py-3 rounded-lg border border-gray-200/80 shadow-sm;
+  @apply flex items-center justify-between mb-6 sticky z-10 bg-white/95 backdrop-blur-sm py-3 rounded-lg border border-gray-200/80 shadow-sm;
+  top: 160px;
   padding-left: 1.5rem;
   padding-right: 1.5rem;
 }
@@ -435,6 +422,7 @@ onMounted(async () => {
 @media (max-width: 768px) {
   .timeline-date {
     @apply flex-col items-start space-y-1;
+    top: 180px; /* 移动端可能需要更大的间距 */
   }
 
   .movie-card {

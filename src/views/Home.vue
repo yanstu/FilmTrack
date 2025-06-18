@@ -126,11 +126,11 @@
             class="group cursor-pointer"
           >
             <div class="relative aspect-[2/3] rounded-lg overflow-hidden bg-gray-200 group-hover:shadow-lg transition-shadow duration-200">
-              <img
+              <CachedImage
                 :src="getMovieImageURL(movie.poster_path)"
                 :alt="movie.title"
-                class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                @error="handleImageError"
+                class-name="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                fallback="/placeholder-poster.svg"
               />
               <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent">
                 <div class="absolute bottom-0 left-0 right-0 p-3">
@@ -185,11 +185,11 @@
             class="group cursor-pointer"
           >
             <div class="relative aspect-[2/3] rounded-lg overflow-hidden bg-gray-200 group-hover:shadow-lg transition-shadow duration-200">
-              <img
+              <CachedImage
                 :src="getMovieImageURL(movie.poster_path)"
                 :alt="movie.title"
-                class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                @error="handleImageError"
+                class-name="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                fallback="/placeholder-poster.svg"
               />
               <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent">
                 <div class="absolute bottom-0 left-0 right-0 p-3">
@@ -203,8 +203,8 @@
                       <span class="text-white text-xs">{{ formatRating(movie.personal_rating) }}</span>
                     </div>
                   </div>
-            </div>
-            </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -218,7 +218,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useMovieStore } from '../stores/movie'
 import { databaseAPI, tmdbAPI } from '../utils/api'
-import { formatRating } from '../utils/constants'
+import { formatRating, getStatusLabel, getStatusBadgeClass } from '../utils/constants'
 import { APP_CONFIG } from '../../config/app.config'
 import type { Movie, Statistics } from '../types'
 import { 
@@ -230,6 +230,7 @@ import {
   TrendingUpIcon,
   ClockIcon
 } from 'lucide-vue-next'
+import CachedImage from '../components/ui/CachedImage.vue'
 
 const router = useRouter()
 const movieStore = useMovieStore()
@@ -255,32 +256,12 @@ const recentHistory = ref<Movie[]>([])
 
 // 方法
 const getMovieImageURL = (path: string | undefined) => {
-  return path ? tmdbAPI.getImageURL(path) : '/placeholder-poster.svg'
-}
-
-const getStatusLabel = (status: string) => {
-  return APP_CONFIG.features.watchStatus[status as keyof typeof APP_CONFIG.features.watchStatus] || status
-}
-
-const getStatusBadgeClass = (status: string) => {
-  const classes = {
-    watching: 'bg-green-100/90 text-green-800 border border-green-200',
-    completed: 'bg-blue-100/90 text-blue-800 border border-blue-200',
-    planned: 'bg-yellow-100/90 text-yellow-800 border border-yellow-200',
-    paused: 'bg-orange-100/90 text-orange-800 border border-orange-200',
-    dropped: 'bg-red-100/90 text-red-800 border border-red-200'
-  }
-  return classes[status as keyof typeof classes] || 'bg-gray-100/90 text-gray-800 border border-gray-200'
-}
-
-const handleImageError = (event: Event) => {
-  const img = event.target as HTMLImageElement
-  img.src = '/placeholder-poster.svg'
+  return tmdbAPI.getImageURL(path);
 }
 
 const navigateToDetail = (movieId: string) => {
   router.push(`/detail/${movieId}`)
-  }
+}
 
 // 数据加载方法
 const loadStatistics = async () => {

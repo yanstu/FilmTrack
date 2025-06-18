@@ -100,6 +100,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
+import { invoke } from '@tauri-apps/api/core';
 import Modal from './Modal.vue';
 
 interface Props {
@@ -113,6 +114,19 @@ interface Emits {
 
 interface AppSettings {
   minimizeToTray: boolean;
+}
+
+interface StorageInfo {
+  cache_size: string;
+  database_size: string;
+  cache_size_bytes: number;
+  database_size_bytes: number;
+}
+
+interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  error?: string;
 }
 
 const props = defineProps<Props>();
@@ -136,8 +150,6 @@ const confirmDialog = ref({
   onConfirm: () => {}
 });
 
-// 计算属性 - 移除了缓存位置显示
-
 // 方法
 const handleSave = () => {
   emit('save', settings.value);
@@ -155,10 +167,13 @@ const clearImageCache = () => {
       isClearing.value = true;
       
       try {
-        // TODO: 调用 Tauri 命令清空图片缓存
-        await new Promise(resolve => setTimeout(resolve, 1000)); // 模拟清理过程
-        console.log('图片缓存已清空');
-        await updateCacheInfo();
+        const response = await invoke<ApiResponse<string>>('clear_image_cache');
+        if (response.success) {
+          console.log('图片缓存已清空');
+          await updateCacheInfo();
+        } else {
+          throw new Error(response.error || '清空失败');
+        }
       } catch (error) {
         console.error('清空缓存失败:', error);
       } finally {
@@ -179,10 +194,15 @@ const clearAllData = () => {
       isClearing.value = true;
       
       try {
-        // TODO: 调用 Tauri 命令清空所有数据
-        await new Promise(resolve => setTimeout(resolve, 2000)); // 模拟清理过程
-        console.log('所有数据已清空');
-        await updateCacheInfo();
+        const response = await invoke<ApiResponse<string>>('clear_all_data');
+        if (response.success) {
+          console.log('所有数据已清空');
+          await updateCacheInfo();
+          // 可能需要重新加载页面或重置应用状态
+          window.location.reload();
+        } else {
+          throw new Error(response.error || '清空失败');
+        }
       } catch (error) {
         console.error('清空数据失败:', error);
       } finally {
@@ -194,9 +214,13 @@ const clearAllData = () => {
 
 const updateCacheInfo = async () => {
   try {
-    // TODO: 调用 Tauri 命令获取缓存和数据库大小
-    cacheSize.value = '12.5 MB';
-    dbSize.value = '3.2 MB';
+    const response = await invoke<ApiResponse<StorageInfo>>('get_storage_info');
+    if (response.success && response.data) {
+      cacheSize.value = response.data.cache_size;
+      dbSize.value = response.data.database_size;
+    } else {
+      throw new Error(response.error || '获取失败');
+    }
   } catch (error) {
     console.error('获取存储信息失败:', error);
     cacheSize.value = '获取失败';

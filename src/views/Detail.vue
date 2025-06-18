@@ -26,11 +26,12 @@
       <div class="relative h-96 overflow-hidden">
         <!-- 背景图 -->
         <div class="absolute inset-0">
-          <img
+          <CachedImage
             v-if="backdropImages.length > 0"
             :src="getImageURL(backdropImages[currentBackdropIndex], 'w1280')"
             :alt="movie.title"
-            class="w-full h-full object-cover"
+            class-name="w-full h-full object-cover"
+            fallback="/placeholder-poster.svg"
           />
           <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent"></div>
         </div>
@@ -51,12 +52,12 @@
         <div class="absolute bottom-0 left-0 right-0 p-6 text-white">
           <div class="flex items-end space-x-6">
             <!-- 海报 -->
-            <div class="flex-shrink-0">
-              <img
+            <div class="flex-shrink-0 cursor-pointer" @click="showPosterPreview">
+              <CachedImage
                 :src="getImageURL(movie.poster_path)"
                 :alt="movie.title"
-                class="w-48 h-72 object-cover rounded-lg shadow-xl cursor-pointer hover:opacity-90 transition-opacity"
-                @click="showPosterPreview"
+                class-name="w-48 h-72 object-cover rounded-lg shadow-xl hover:opacity-90 transition-opacity"
+                fallback="/placeholder-poster.svg"
               />
             </div>
 
@@ -123,11 +124,8 @@
                   <LinkIcon v-if="isValidUrl(movie.watch_source)" class="w-4 h-4 text-white mr-1" />
                   <a
                     v-if="isValidUrl(movie.watch_source)"
-                    :href="movie.watch_source"
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    @click="openExternalLink(movie.watch_source)"
                     class="text-white font-medium hover:text-blue-300 transition-colors cursor-pointer"
-                    @click.stop
                   >
                     {{ movie.watch_source }}
                   </a>
@@ -197,7 +195,7 @@
                 </button>
 
                 <button
-                  v-if="movie.type === 'tv'"
+                  v-if="movie.type === 'tv' && movie.status !== 'completed'"
                   @click="markEpisodeWatched"
                   class="w-full flex items-center justify-center px-4 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors duration-200 font-medium"
                 >
@@ -278,10 +276,11 @@
     >
       <template #content>
         <div class="flex justify-center">
-          <img
+          <CachedImage
             :src="getImageURL(movie?.poster_path, 'w780')"
             :alt="movie?.title"
-            class="max-w-full max-h-[70vh] object-contain rounded-lg shadow-lg"
+            class-name="max-w-full max-h-[70vh] object-contain rounded-lg shadow-lg"
+            fallback="/placeholder-poster.svg"
           />
         </div>
       </template>
@@ -306,11 +305,13 @@ import { useRoute, useRouter } from 'vue-router';
 import { useMovieStore } from '../stores/movie';
 import { tmdbAPI } from '../utils/api';
 import { APP_CONFIG } from '../../config/app.config';
-import { getAirStatusLabel, formatRating } from '../utils/constants';
+import { getAirStatusLabel, formatRating, getTypeLabel, getStatusLabel, getStatusBadgeClass } from '../utils/constants';
 import Modal from '../components/ui/Modal.vue';
 import EditRecordModal from '../components/ui/EditRecordModal.vue';
 import { LinkIcon, TrashIcon } from 'lucide-vue-next';
+import { openUrl } from '@tauri-apps/plugin-opener';
 import type { Movie } from '../types';
+import CachedImage from '../components/ui/CachedImage.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -336,26 +337,7 @@ const goBack = () => {
 };
 
 const getImageURL = (path: string | undefined, size: string = 'w500') => {
-  return path ? tmdbAPI.getImageURL(path, size) : '/placeholder-poster.svg';
-};
-
-const getTypeLabel = (type: string) => {
-  return APP_CONFIG.features.mediaTypes[type as keyof typeof APP_CONFIG.features.mediaTypes] || type;
-};
-
-const getStatusLabel = (status: string) => {
-  return APP_CONFIG.features.watchStatus[status as keyof typeof APP_CONFIG.features.watchStatus] || status;
-};
-
-const getStatusBadgeClass = (status: string) => {
-  const classes = {
-    watching: 'bg-green-100/90 text-green-800 border border-green-200',
-    completed: 'bg-blue-100/90 text-blue-800 border border-blue-200',
-    planned: 'bg-yellow-100/90 text-yellow-800 border border-yellow-200',
-    paused: 'bg-orange-100/90 text-orange-800 border border-orange-200',
-    dropped: 'bg-red-100/90 text-red-800 border border-red-200'
-  };
-  return classes[status as keyof typeof classes] || 'bg-gray-100/90 text-gray-800 border border-gray-200';
+  return tmdbAPI.getImageURL(path, size);
 };
 
 const getProgressColor = (progress: number) => {
@@ -392,20 +374,25 @@ const markEpisodeWatched = async () => {
   if (!movie.value || movie.value.type !== 'tv') return;
   
   try {
+    const newCurrentEpisode = (movie.value.current_episode || 0) + 1;
+    const totalEpisodes = movie.value.total_episodes || 0;
+    
     const updatedMovie = {
       ...movie.value,
-      current_episode: (movie.value.current_episode || 0) + 1,
+      current_episode: newCurrentEpisode,
       updated_at: new Date().toISOString()
     };
     
-    if (updatedMovie.current_episode >= (movie.value.total_episodes || 0)) {
+    // 如果看到最后一集，将状态改为已看
+    if (newCurrentEpisode >= totalEpisodes && totalEpisodes > 0) {
       updatedMovie.status = 'completed';
+      showDialog('success', '恭喜完结！', `《${movie.value.title}》已全部看完，状态已更新为"已看"`);
+    } else {
+      showDialog('success', '成功', `已标记第 ${newCurrentEpisode} 集为已观看`);
     }
     
     await movieStore.updateMovie(updatedMovie);
     movie.value = updatedMovie;
-    
-    showDialog('success', '成功', `已标记第 ${updatedMovie.current_episode} 集为已观看`);
   } catch (error) {
     console.error('更新失败:', error);
     showDialog('error', '更新失败', '更新失败，请重试');
@@ -524,6 +511,10 @@ const showDialog = (type: typeof dialog.value.type, title: string, message: stri
     message,
     onConfirm: onConfirm || (() => { dialog.value.visible = false; })
   };
+};
+
+const openExternalLink = (url: string) => {
+  openUrl(url);
 };
 
 // 初始化

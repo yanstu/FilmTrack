@@ -10,9 +10,10 @@
     "core:window:allow-show",
     "core:window:allow-close",
     "sql:default",
+    "sql:allow-load",
     "sql:allow-execute",
     "sql:allow-select",
-    "sql:allow-load",
-    "sql:allow-close"
+    "sql:allow-close",
+    "opener:default"
   ]
 } 
