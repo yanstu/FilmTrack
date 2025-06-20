@@ -25,7 +25,8 @@ import {
   Home as HomeIcon,
   Film as FilmIcon,
   Plus as PlusIcon,
-  History as HistoryIcon
+  History as HistoryIcon,
+  Import as ImportIcon
 } from 'lucide-vue-next';
 
 const route = useRoute();
@@ -54,6 +55,12 @@ const menuItems = [
     label: '历史',
     icon: HistoryIcon,
     route: { name: 'History' }
+  },
+  {
+    name: 'import',
+    label: '导入',
+    icon: ImportIcon,
+    route: { name: 'Import' }
   }
 ];
 

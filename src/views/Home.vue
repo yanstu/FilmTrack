@@ -2,10 +2,10 @@
   <div class="h-full overflow-auto bg-gradient-to-br from-blue-50/50 via-white to-purple-50/50">
     <div class="max-w-7xl mx-auto p-6 space-y-8">
       <!-- 页面标题和快速操作 -->
-      <div class="flex items-center justify-between">
+      <div class="flex items-center justify-between animate-fade-in-up" style="animation-delay: 0ms;">
         <div>
-          <h1 class="text-3xl font-bold text-gray-900 mb-2">我的影视库</h1>
-          <p class="text-gray-600">管理你的个人影视收藏</p>
+          <h1 class="text-3xl font-bold text-gray-900 mb-2">影迹</h1>
+          <p class="text-gray-600">记录观影足迹，不再错过每一集精彩</p>
         </div>
         <div class="flex space-x-3">
           <router-link
@@ -19,7 +19,7 @@
       </div>
 
       <!-- 统计概览 -->
-      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 animate-fade-in-up" style="animation-delay: 100ms;">
         <h2 class="text-xl font-semibold text-gray-900 mb-6">统计概览</h2>
         
         <div v-if="loadingStats" class="flex items-center justify-center py-8">
@@ -88,7 +88,7 @@
       </div>
 
       <!-- 正在追剧 -->
-      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 animate-fade-in-up" style="animation-delay: 200ms;">
         <div class="flex items-center justify-between mb-6">
           <h2 class="text-xl font-semibold text-gray-900">正在追剧</h2>
         </div>
@@ -148,7 +148,7 @@
       </div>
 
       <!-- 最近观看历史 -->
-      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 animate-fade-in-up" style="animation-delay: 300ms;">
         <div class="flex items-center justify-between mb-6">
           <h2 class="text-xl font-semibold text-gray-900">最近观看</h2>
           <router-link
@@ -217,7 +217,8 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useMovieStore } from '../stores/movie'
-import { databaseAPI, tmdbAPI } from '../utils/api'
+import { tmdbAPI } from '../utils/api'
+import { databaseAPI } from '../services/database-api'
 import { formatRating, getStatusLabel, getStatusBadgeClass } from '../utils/constants'
 import { APP_CONFIG } from '../../config/app.config'
 import type { Movie, Statistics } from '../types'
@@ -328,15 +329,31 @@ const loadWatchHistory = async () => {
 
 // 初始化数据
 const initializeData = async () => {
-  await Promise.allSettled([
-    loadStatistics(),
-    loadWatchingMovies(),
-    loadWatchHistory()
-  ])
+  try {
+    // 添加超时机制，防止卡死
+    const timeout = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('数据加载超时')), 10000)
+    );
+
+    await Promise.race([
+      Promise.allSettled([
+        loadStatistics(),
+        loadWatchingMovies(),
+        loadWatchHistory()
+      ]),
+      timeout
+    ]);
+  } catch (error) {
+    console.error('数据初始化失败:', error);
+    // 即使失败也不阻塞界面
+  }
 }
 
 onMounted(() => {
-  initializeData()
+  // 延迟执行，确保组件完全挂载
+  setTimeout(() => {
+    initializeData();
+  }, 100);
 })
 </script>
 
@@ -351,6 +368,22 @@ onMounted(() => {
   }
 }
 
+/* 页面进入动画 */
+.animate-fade-in-up {
+  animation: fadeInUp 0.4s ease-out both;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* 悬停效果 */
 .group:hover .group-hover\:scale-105 {
   transform: scale(1.05);
@@ -360,4 +393,4 @@ onMounted(() => {
 .group-hover\:shadow-lg:hover {
   box-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
 }
-</style> 
+</style>

@@ -158,7 +158,7 @@ const isAdding = ref(false);
 
 // 方法
 const getImageURL = (path: string | undefined) => {
-  return tmdbAPI.getImageURL(path, 'w342');
+  return tmdbAPI.getImageURL(path);
 };
 
 const getTypeLabel = (mediaType: string | undefined) => {

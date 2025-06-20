@@ -8,6 +8,7 @@
     :large="true"
     @close="$emit('close')"
     @confirm="handleSave"
+    @cancel="$emit('close')"
     confirm-text="保存"
     cancel-text="关闭"
   >
@@ -99,9 +100,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, watch } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import Modal from './Modal.vue';
+import StorageService, { StorageKey } from '../../utils/storage';
 
 interface Props {
   isOpen: boolean;
@@ -153,6 +155,8 @@ const confirmDialog = ref({
 // 方法
 const handleSave = () => {
   emit('save', settings.value);
+  // 触发设置更新事件
+  window.dispatchEvent(new CustomEvent('settings-updated'));
   emit('close');
 };
 
@@ -229,14 +233,11 @@ const updateCacheInfo = async () => {
 };
 
 const loadSettings = () => {
-  // 从本地存储加载设置
-  const savedSettings = localStorage.getItem('filmtrack-settings');
+  const savedSettings = StorageService.get(StorageKey.SETTINGS, {
+    minimizeToTray: true
+  });
   if (savedSettings) {
-    try {
-      settings.value = { ...settings.value, ...JSON.parse(savedSettings) };
-    } catch (error) {
-      console.error('加载设置失败:', error);
-    }
+    settings.value = { ...settings.value, ...savedSettings };
   }
 };
 

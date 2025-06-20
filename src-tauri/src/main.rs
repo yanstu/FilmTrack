@@ -3,7 +3,12 @@
 use tauri::{command, Manager, Emitter, menu::{MenuBuilder, MenuItem, PredefinedMenuItem}, tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState}, AppHandle};
 use uuid::Uuid;
 use chrono::Utc;
-use filmtrack_lib::{models::{ApiResponse, StorageInfo}, services::{CacheService, StorageService}};
+use filmtrack_lib::{
+    models::{ApiResponse, StorageInfo}, 
+    services::{CacheService, StorageService, UpdateService, UpdateCheckResult},
+    scrapers::{DoubanScraper, DoubanMovie},
+    config::{AppConfig, ConfigManager}
+};
 use base64::{Engine as _, engine::general_purpose};
 
 /// 生成UUID
@@ -77,19 +82,146 @@ async fn read_file_as_base64(file_path: String) -> Result<ApiResponse<String>, S
     }
 }
 
+// 命令：估算豆瓣电影数量
+#[tauri::command]
+async fn estimate_douban_movie_count(user_id: String) -> Result<u32, String> {
+    let scraper = DoubanScraper::new();
+    scraper.estimate_movie_count(&user_id).await
+        .map_err(|e| format!("估算豆瓣电影数量失败: {}", e))
+}
+
+// 命令：获取豆瓣电影列表
+#[tauri::command]
+async fn fetch_douban_movies(user_id: String, start: u32) -> Result<Vec<DoubanMovie>, String> {
+    let scraper = DoubanScraper::new();
+    scraper.fetch_movies(&user_id, start).await
+        .map_err(|e| format!("获取豆瓣电影列表失败: {}", e))
+}
+
+/// 获取应用配置
+#[tauri::command]
+async fn get_app_config() -> Result<ApiResponse<AppConfig>, String> {
+    Ok(ApiResponse::success(ConfigManager::get()))
+}
+
+/// 更新应用配置
+#[tauri::command]
+async fn update_app_config(app: AppHandle, config: AppConfig) -> Result<ApiResponse<String>, String> {
+    match ConfigManager::update(config, &app) {
+        Ok(_) => Ok(ApiResponse::success("配置已更新".to_string())),
+        Err(error) => Err(error),
+    }
+}
+
+/// 检查更新
+#[tauri::command]
+async fn check_for_update() -> Result<ApiResponse<UpdateCheckResult>, String> {
+    match UpdateService::check_for_update().await {
+        Ok(result) => Ok(ApiResponse::success(result)),
+        Err(error) => Err(error),
+    }
+}
+
+/// 忽略版本
+#[tauri::command]
+async fn ignore_version(version: String) -> Result<(), String> {
+    UpdateService::ignore_version(version)
+}
+
+/// 下载更新
+#[tauri::command]
+async fn download_update(app_handle: AppHandle, url: String) -> Result<String, String> {
+    let file_path = UpdateService::download_update(&app_handle, &url).await?;
+    Ok(file_path.to_string_lossy().to_string())
+}
+
+/// 打开安装包
+#[tauri::command]
+async fn open_installer(file_path: String) -> Result<(), String> {
+    let path = std::path::PathBuf::from(file_path);
+    UpdateService::open_installer(&path)
+}
+
+/// 检查更新是否已下载
+#[tauri::command]
+async fn is_update_downloaded(app_handle: AppHandle, url: String) -> Result<Option<String>, String> {
+    match UpdateService::is_file_downloaded(&app_handle, &url)? {
+        Some(path) => Ok(Some(path.to_string_lossy().to_string())),
+        None => Ok(None)
+    }
+}
+
+/// 打开下载链接
+#[tauri::command]
+async fn open_download_url(url: String) -> Result<(), String> {
+    UpdateService::open_download_url(&url)
+}
+
+/// 退出应用
+#[tauri::command]
+async fn exit_app(app_handle: AppHandle) -> Result<(), String> {
+    app_handle.exit(0);
+    Ok(())
+}
+
+/// 写入豆瓣导入日志
+#[tauri::command]
+async fn write_douban_import_log(app_handle: AppHandle, log_message: String, session_id: Option<String>) -> Result<(), String> {
+    use std::fs::OpenOptions;
+    use std::io::Write;
+    use chrono::Local;
+
+    // 获取应用数据目录
+    let app_data_dir = app_handle.path().app_data_dir()
+        .map_err(|e| format!("获取应用数据目录失败: {}", e))?;
+
+    // 创建豆瓣导入日志目录
+    let log_dir = app_data_dir.join("douban_import");
+    std::fs::create_dir_all(&log_dir)
+        .map_err(|e| format!("创建日志目录失败: {}", e))?;
+
+    // 生成日志文件名（按导入会话分开）
+    let now = Local::now();
+    let session_id = session_id.unwrap_or_else(|| now.format("%Y%m%d_%H%M%S").to_string());
+    let log_filename = format!("douban_import_{}.txt", session_id);
+    let log_path = log_dir.join(log_filename);
+
+    // 写入日志
+    let timestamp = now.format("%Y-%m-%d %H:%M:%S");
+    let log_line = format!("[{}] {}\n", timestamp, log_message);
+
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_path)
+        .map_err(|e| format!("打开日志文件失败: {}", e))?;
+
+    file.write_all(log_line.as_bytes())
+        .map_err(|e| format!("写入日志失败: {}", e))?;
+
+    file.flush()
+        .map_err(|e| format!("刷新日志文件失败: {}", e))?;
+
+    Ok(())
+}
+
+
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_sql::Builder::new().build())
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            // 当尝试运行第二个实例时，聚焦到现有窗口
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.show();
-                let _ = window.set_focus();
-            }
-        }))
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_http::init())
+        .plugin(tauri_plugin_shell::init())
         .setup(|app| {
+            // 加载配置
+            if let Err(error) = ConfigManager::load(&app.app_handle()) {
+                eprintln!("加载配置失败: {}", error);
+            }
+            
             // 创建系统托盘
             let add_record = MenuItem::with_id(app, "add_record", "添加记录", true, None::<&str>)?;
             let separator = PredefinedMenuItem::separator(app)?;
@@ -125,6 +257,50 @@ pub fn run() {
                 })
                 .build(app)?;
 
+            // 处理窗口关闭事件和更新检查
+            if let Some(window) = app.get_webview_window("main") {
+                let window_for_update = window.clone();
+                let window_for_close_event = window.clone();
+
+                // 监听窗口关闭事件
+                window.on_window_event(move |event| {
+                    use tauri::WindowEvent;
+                    if let WindowEvent::CloseRequested { api, .. } = event {
+                        // 阻止默认关闭行为
+                        api.prevent_close();
+
+                        // 隐藏窗口到托盘
+                        let _ = window_for_close_event.hide();
+                    }
+                });
+
+                // 延迟2秒后检查更新，只在程序启动时执行一次
+                std::thread::spawn(move || {
+                    // 等待2秒
+                    std::thread::sleep(std::time::Duration::from_secs(2));
+
+                    // 检查应用配置
+                    let config = ConfigManager::get();
+                    if config.update.check_on_startup {
+                        // 在Tokio运行时上执行异步检查
+                        let rt = tokio::runtime::Runtime::new().unwrap();
+                        rt.block_on(async {
+                            match UpdateService::check_for_update().await {
+                                Ok(result) => {
+                                    if result.has_update {
+                                        // 有更新时发送事件通知前端
+                                        let _ = window_for_update.emit("update-available", result);
+                                    }
+                                },
+                                Err(error) => {
+                                    eprintln!("检查更新失败: {}", error);
+                                }
+                            }
+                        });
+                    }
+                });
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -135,7 +311,19 @@ pub fn run() {
             clear_all_data,
             cache_image,
             get_cached_image_path,
-            read_file_as_base64
+            read_file_as_base64,
+            estimate_douban_movie_count,
+            fetch_douban_movies,
+            get_app_config,
+            update_app_config,
+            check_for_update,
+            ignore_version,
+            download_update,
+            open_installer,
+            is_update_downloaded,
+            open_download_url,
+            exit_app,
+            write_douban_import_log
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

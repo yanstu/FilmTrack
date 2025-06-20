@@ -8,6 +8,7 @@
     :large="true"
     @close="handleClose"
     @confirm="handleSave"
+    @cancel="handleClose"
     confirm-text="保存"
     cancel-text="取消"
   >
@@ -107,7 +108,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, watch, nextTick } from 'vue';
 import type { Movie } from '../../types';
 import { APP_CONFIG } from '../../../config/app.config';
 import Modal from './Modal.vue';
@@ -137,12 +138,42 @@ const statusOptions = [
   }))
 ];
 
+// 初始化电影数据，确保所有必需字段都有默认值
+const initializeMovieData = (movie: Movie): Movie => {
+  return {
+    ...movie,
+    // 确保状态字段有默认值
+    status: movie.status || 'planned',
+    // 确保评分字段有默认值
+    personal_rating: movie.personal_rating ?? 0,
+    // 确保其他可能缺失的字段有默认值
+    current_season: movie.current_season || 1,
+    current_episode: movie.current_episode || 0,
+    watch_source: movie.watch_source || '',
+    notes: movie.notes || '',
+    watch_count: movie.watch_count || 0,
+    genres: movie.genres || [],
+    tags: movie.tags || []
+  };
+};
+
 // 监听传入的电影数据变化
 watch(() => props.movie, (newMovie) => {
-  if (newMovie) {
-    localMovie.value = { ...newMovie };
+  if (newMovie && props.isOpen) {
+    nextTick(() => {
+      localMovie.value = initializeMovieData(JSON.parse(JSON.stringify(newMovie)));
+    });
   }
 }, { immediate: true });
+
+// 监听弹窗打开状态
+watch(() => props.isOpen, (isOpen) => {
+  if (isOpen && props.movie) {
+    nextTick(() => {
+      localMovie.value = initializeMovieData(JSON.parse(JSON.stringify(props.movie)));
+    });
+  }
+});
 
 function setToLastEpisode() {
   if (localMovie.value.total_episodes) {
@@ -155,6 +186,6 @@ function handleClose() {
 }
 
 function handleSave() {
-  emit('save', localMovie.value);
+  emit('save', JSON.parse(JSON.stringify(localMovie.value)));
 }
 </script> 

@@ -13,6 +13,9 @@ import type {
   ApiResponse,
   Movie
 } from '../types'
+import { apiCache } from './api-cache'
+import { tmdbQueue } from './request-queue'
+import { generateSearchKeywords } from '../utils/titleUtils'
 
 // 类型别名
 export type TMDbSearchResponse = TMDbResponse<TMDbMovie>
@@ -33,23 +36,106 @@ const tmdbClient = axios.create({
  */
 export class TMDbService {
   /**
+   * 通用API请求方法
+   * @param endpoint API端点
+   * @param params 请求参数
+   * @param cacheKey 缓存键
+   * @returns API响应
+   */
+  private static async _request<T>(
+    endpoint: string, 
+    params: Record<string, any> = {}, 
+    cacheKey: string
+  ): Promise<ApiResponse<T>> {
+    // 检查缓存
+    const cachedResult = apiCache.get<ApiResponse<T>>(cacheKey);
+    if (cachedResult) {
+      return cachedResult;
+    }
+    
+    return tmdbQueue.add(async () => {
+      try {
+        const response = await tmdbClient.get<T>(endpoint, { params });
+        const result = { success: true, data: response.data };
+        
+        // 缓存结果
+        apiCache.set(cacheKey, result);
+        
+        return result;
+      } catch (error) {
+        console.error(`API请求失败 [${endpoint}]:`, error);
+        return { 
+          success: false, 
+          error: `API请求失败: ${error instanceof Error ? error.message : '未知错误'}` 
+        };
+      }
+    });
+  }
+
+  /**
+   * 搜索电影
+   */
+  static async searchMovies(
+    query: string, 
+    page: number = 1
+  ): Promise<ApiResponse<TMDbSearchResponse>> {
+    if (!query) return { success: false, error: '搜索关键词不能为空' };
+    
+    // 生成搜索关键词
+    const searchKeyword = generateSearchKeywords(query);
+    
+    // 生成缓存键
+    const cacheKey = `search_movies_${searchKeyword}_${page}`;
+    
+    return this._request<TMDbSearchResponse>(
+      '/search/movie',
+      { query: searchKeyword, page, include_adult: false },
+      cacheKey
+    );
+  }
+
+  /**
+   * 搜索电视剧
+   */
+  static async searchTVShows(
+    query: string, 
+    page: number = 1
+  ): Promise<ApiResponse<TMDbSearchResponse>> {
+    if (!query) return { success: false, error: '搜索关键词不能为空' };
+    
+    // 生成搜索关键词
+    const searchKeyword = generateSearchKeywords(query);
+    
+    // 生成缓存键
+    const cacheKey = `search_tv_${searchKeyword}_${page}`;
+    
+    return this._request<TMDbSearchResponse>(
+      '/search/tv',
+      { query: searchKeyword, page, include_adult: false },
+      cacheKey
+    );
+  }
+
+  /**
    * 搜索电影和电视剧
    */
   static async searchMulti(
     query: string, 
     page: number = 1
   ): Promise<ApiResponse<TMDbSearchResponse>> {
-    try {
-      const response = await tmdbClient.get('/search/multi', {
-        params: { query, page }
-      })
-      return { success: true, data: response.data }
-    } catch (error) {
-      return { 
-        success: false, 
-        error: `搜索失败: ${error instanceof Error ? error.message : '未知错误'}` 
-      }
-    }
+    if (!query) return { success: false, error: '搜索关键词不能为空' };
+    
+    // 生成搜索关键词
+    const searchKeyword = generateSearchKeywords(query);
+    
+    // 生成缓存键
+    const cacheKey = `search_multi_${searchKeyword}_${page}`;
+    
+    return this._request<TMDbSearchResponse>(
+      '/search/multi',
+      { query: searchKeyword, page, include_adult: false },
+      cacheKey
+    );
   }
 
   /**
@@ -58,17 +144,14 @@ export class TMDbService {
   static async getPopularMovies(
     page: number = 1
   ): Promise<ApiResponse<TMDbSearchResponse>> {
-    try {
-      const response = await tmdbClient.get('/movie/popular', {
-        params: { page }
-      })
-      return { success: true, data: response.data }
-    } catch (error) {
-      return { 
-        success: false, 
-        error: `获取热门电影失败: ${error instanceof Error ? error.message : '未知错误'}` 
-      }
-    }
+    // 生成缓存键
+    const cacheKey = `popular_movies_${page}`;
+    
+    return this._request<TMDbSearchResponse>(
+      '/movie/popular',
+      { page },
+      cacheKey
+    );
   }
 
   /**
@@ -77,17 +160,14 @@ export class TMDbService {
   static async getPopularTV(
     page: number = 1
   ): Promise<ApiResponse<TMDbSearchResponse>> {
-    try {
-      const response = await tmdbClient.get('/tv/popular', {
-        params: { page }
-      })
-      return { success: true, data: response.data }
-    } catch (error) {
-      return { 
-        success: false, 
-        error: `获取热门电视剧失败: ${error instanceof Error ? error.message : '未知错误'}` 
-      }
-    }
+    // 生成缓存键
+    const cacheKey = `popular_tv_${page}`;
+    
+    return this._request<TMDbSearchResponse>(
+      '/tv/popular',
+      { page },
+      cacheKey
+    );
   }
 
   /**
@@ -96,15 +176,16 @@ export class TMDbService {
   static async getMovieDetails(
     id: number
   ): Promise<ApiResponse<TMDbMovieDetail>> {
-    try {
-      const response = await tmdbClient.get(`/movie/${id}`)
-      return { success: true, data: response.data }
-    } catch (error) {
-      return { 
-        success: false, 
-        error: `获取电影详情失败: ${error instanceof Error ? error.message : '未知错误'}` 
-      }
-    }
+    if (!id) return { success: false, error: '电影ID不能为空' };
+    
+    // 生成缓存键
+    const cacheKey = `movie_details_${id}`;
+    
+    return this._request<TMDbMovieDetail>(
+      `/movie/${id}`,
+      { append_to_response: 'credits,images,videos,recommendations' },
+      cacheKey
+    );
   }
 
   /**
@@ -113,15 +194,16 @@ export class TMDbService {
   static async getTVDetails(
     id: number
   ): Promise<ApiResponse<TMDbMovieDetail>> {
-    try {
-      const response = await tmdbClient.get(`/tv/${id}`)
-      return { success: true, data: response.data }
-    } catch (error) {
-      return { 
-        success: false, 
-        error: `获取电视剧详情失败: ${error instanceof Error ? error.message : '未知错误'}` 
-      }
-    }
+    if (!id) return { success: false, error: '电视剧ID不能为空' };
+    
+    // 生成缓存键
+    const cacheKey = `tv_details_${id}`;
+    
+    return this._request<TMDbMovieDetail>(
+      `/tv/${id}`,
+      { append_to_response: 'credits,images,videos,recommendations' },
+      cacheKey
+    );
   }
 
   /**
@@ -130,23 +212,22 @@ export class TMDbService {
   static async getGenres(
     mediaType: 'movie' | 'tv'
   ): Promise<ApiResponse<any>> {
-    try {
-      const response = await tmdbClient.get(`/genre/${mediaType}/list`)
-      return { success: true, data: response.data }
-    } catch (error) {
-      return { 
-        success: false, 
-        error: `获取类型列表失败: ${error instanceof Error ? error.message : '未知错误'}` 
-      }
-    }
+    // 生成缓存键
+    const cacheKey = `genres_${mediaType}`;
+    
+    return this._request<any>(
+      `/genre/${mediaType}/list`,
+      {},
+      cacheKey
+    );
   }
 
   /**
    * 获取图片URL
    */
-  static getImageURL(path: string, size: string = 'w500'): string {
+  static getImageURL(path: string): string {
     if (!path) return ''
-    return `${APP_CONFIG.tmdb.imageBaseUrl}/${size}${path}`
+    return `${APP_CONFIG.tmdb.imageBaseUrl}/w500${path}`
   }
 
   /**
@@ -154,13 +235,72 @@ export class TMDbService {
    */
   static getFullImageURL(
     path: string | null, 
-    size: string = 'w500',
     defaultImage?: string
   ): string {
     if (!path) {
       return defaultImage || '/images/placeholder-movie.jpg'
     }
-    return this.getImageURL(path, size)
+    return this.getImageURL(path)
+  }
+  
+  /**
+   * 获取影视作品的背景图片
+   */
+  static async loadBackdropImages(
+    tmdbId: number, 
+    mediaType: 'movie' | 'tv'
+  ): Promise<string[]> {
+    if (!tmdbId) return [];
+
+    // 生成缓存键
+    const cacheKey = `backdrops_${mediaType}_${tmdbId}`;
+    
+    // 检查缓存
+    const cachedResult = apiCache.get<string[]>(cacheKey);
+    if (cachedResult) {
+      return cachedResult;
+    }
+    
+    return tmdbQueue.add(async () => {
+      try {
+        const endpoint = `/${mediaType}/${tmdbId}/images`;
+        const response = await tmdbClient.get(endpoint, {
+          params: {
+            include_image_language: 'zh,null'
+          }
+        });
+        const data = response.data;
+        
+        let backdropImages: string[] = [];
+        
+        if (data.backdrops && data.backdrops.length > 0) {
+          // 使用最佳质量的剧照，优先取高分和高分辨率的图片，最多取5张
+          backdropImages = data.backdrops
+            .sort((a: any, b: any) => {
+              // 先按投票数排序
+              if (b.vote_count !== a.vote_count) {
+                return b.vote_count - a.vote_count;
+              }
+              // 再按评分排序
+              if (b.vote_average !== a.vote_average) {
+                return b.vote_average - a.vote_average;
+              }
+              // 最后按分辨率排序
+              return (b.width * b.height) - (a.width * a.height);
+            })
+            .slice(0, 5)
+            .map((img: any) => img.file_path);
+          
+          // 缓存结果
+          apiCache.set(cacheKey, backdropImages);
+        }
+        
+        return backdropImages;
+      } catch (error) {
+        console.error('获取剧照失败:', error);
+        return [];
+      }
+    });
   }
 }
 
@@ -172,17 +312,26 @@ export class TMDbTransformer {
    * 将TMDb电影数据转换为本地Movie格式
    */
   static tmdbToMovie(tmdbMovie: TMDbMovie): Partial<Movie> {
+    // 根据媒体类型处理不同的字段
+    const isMovie = tmdbMovie.media_type === 'movie' || 'title' in tmdbMovie;
+    
+    // 获取年份
+    const releaseDate = isMovie 
+      ? (tmdbMovie as any).release_date 
+      : (tmdbMovie as any).first_air_date;
+    const year = releaseDate ? new Date(releaseDate).getFullYear() : null;
+    
     return {
-      title: tmdbMovie.title || tmdbMovie.name || '',
+      title: isMovie ? tmdbMovie.title : tmdbMovie.name || '',
       overview: tmdbMovie.overview || null,
       poster_path: tmdbMovie.poster_path || null,
       backdrop_path: tmdbMovie.backdrop_path || null,
-      release_date: tmdbMovie.release_date || tmdbMovie.first_air_date || null,
+      year: year || 0,
       vote_average: tmdbMovie.vote_average || 0,
-      runtime: tmdbMovie.runtime || null,
+      runtime: (tmdbMovie as any).runtime || null,
       genres: tmdbMovie.genre_ids ? this.genreIdsToNames(tmdbMovie.genre_ids) : null,
       status: 'planned' as const,
-      user_rating: null,
+      personal_rating: null,
       watch_count: 0,
       tags: null
     }
@@ -237,6 +386,8 @@ export class TMDbTransformer {
 
 // 导出默认的TMDb API实例
 export const tmdbAPI = {
+  searchMovies: TMDbService.searchMovies,
+  searchTVShows: TMDbService.searchTVShows,
   searchMulti: TMDbService.searchMulti,
   getPopularMovies: TMDbService.getPopularMovies,
   getPopularTV: TMDbService.getPopularTV,
@@ -244,5 +395,6 @@ export const tmdbAPI = {
   getTVDetails: TMDbService.getTVDetails,
   getGenres: TMDbService.getGenres,
   getImageURL: TMDbService.getImageURL,
-  getFullImageURL: TMDbService.getFullImageURL
+  getFullImageURL: TMDbService.getFullImageURL,
+  loadBackdropImages: TMDbService.loadBackdropImages
 } 

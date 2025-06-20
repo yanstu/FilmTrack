@@ -6,15 +6,14 @@
 
 import Database from '@tauri-apps/plugin-sql'
 import { invoke } from '@tauri-apps/api/core'
-import { 
-  Movie, 
-  WatchHistory, 
+import {
+  Movie,
   Statistics,
-  ApiResponse 
+  ApiResponse
 } from '../types'
+import { APP_CONFIG } from '../../config/app.config'
 
-// 数据库实例
-let db: Database | null = null
+
 
 /**
  * 数据库连接管理
@@ -26,11 +25,9 @@ export class DatabaseService {
       try {
       const Database = await import('@tauri-apps/plugin-sql')
       
-      // 直接使用固定的数据库路径
-      console.log(`尝试连接数据库: sqlite:filmtrack.db`)
-      const db = await Database.default.load('sqlite:filmtrack.db')
-      console.log(`数据库连接成功: sqlite:filmtrack.db`)
-      
+      // 使用配置中的数据库名称
+      const dbName = APP_CONFIG.database.name
+      const db = await Database.default.load(`sqlite:${dbName}`)
       return db
     } catch (error) {
       console.error('数据库连接失败:', error)
@@ -95,7 +92,6 @@ export class DatabaseService {
       for (const sql of createTables) {
         try {
           await db.execute(sql)
-          console.log('表创建成功')
         } catch (error) {
           console.warn('表创建失败（可能已存在）:', error)
         }
@@ -130,9 +126,6 @@ export class DatabaseService {
           await db.execute(command)
         } catch (error) {
           // 忽略"duplicate column name"错误，这是正常的
-          if (!String(error).includes('duplicate column name')) {
-            console.warn('字段添加失败:', command, error)
-          }
         }
       }
       
@@ -168,8 +161,6 @@ export class DatabaseService {
           console.warn('索引创建失败:', indexCommand, error)
         }
       }
-      
-      console.log('数据库表结构初始化完成')
     } catch (error) {
       console.error('数据库表结构初始化失败:', error)
       throw error
@@ -188,14 +179,11 @@ export class DatabaseService {
       if (!this.instance) {
         this.instance = await this.connect()
       }
-      
+
       // 初始化表结构
       await this.ensureTableStructure()
-      
-      console.log('数据库初始化完成')
     } catch (error) {
-      console.error('数据库初始化失败:', error)
-      
+
       // 如果是权限问题，提供更明确的错误信息
       if (String(error).includes('sql.execute not allowed') || String(error).includes('权限不足')) {
         throw new Error('数据库权限配置错误：\n' +
@@ -206,7 +194,7 @@ export class DatabaseService {
           '2. 重新启动应用以应用权限配置\n' +
           '3. 如果问题仍然存在，请检查 Tauri 版本是否兼容')
       }
-      
+
       throw error
     }
   }
@@ -348,7 +336,7 @@ export class MovieDAO {
         movie.poster_path || null,
         movie.overview || null,
         movie.status || 'watching',
-        (movie as any).personal_rating || null,
+        (movie as any).personal_rating || 0,
         (movie as any).tmdb_rating || null,
         (movie as any).notes || null,
         (movie as any).watch_source || null,
@@ -357,15 +345,12 @@ export class MovieDAO {
         (movie as any).air_status || null,
         (movie as any).total_episodes || null,
         (movie as any).total_seasons || null,
-        timestamp,
-        timestamp,
-        timestamp,
-        timestamp
+        (movie as any).date_added || timestamp,
+        (movie as any).date_updated || timestamp,
+        (movie as any).created_at || timestamp,
+        (movie as any).updated_at || timestamp
       ]
 
-      console.log('执行SQL:', query)
-      console.log('参数:', params)
-      
       await db.execute(query, params)
       
       const newMovie: Movie = {
@@ -378,7 +363,7 @@ export class MovieDAO {
         poster_path: movie.poster_path || null,
         overview: movie.overview || null,
         status: movie.status || 'watching',
-        personal_rating: (movie as any).personal_rating || null,
+        personal_rating: (movie as any).personal_rating || 0,
         tmdb_rating: (movie as any).tmdb_rating || null,
         notes: (movie as any).notes || null,
         watch_source: (movie as any).watch_source || null,
@@ -387,13 +372,12 @@ export class MovieDAO {
         air_status: (movie as any).air_status || null,
         total_episodes: (movie as any).total_episodes || null,
         total_seasons: (movie as any).total_seasons || null,
-        date_added: timestamp,
-        date_updated: timestamp
+        date_added: (movie as any).date_added || timestamp,
+        date_updated: (movie as any).date_updated || timestamp
       } as Movie
       
       return { success: true, data: newMovie }
     } catch (error) {
-      console.error('数据库添加电影失败:', error)
       return { success: false, error: `添加影视作品失败: ${error}` }
     }
   }
@@ -404,12 +388,7 @@ export class MovieDAO {
       const db = await DatabaseService.getInstance()
       const timestamp = await DatabaseUtils.getCurrentTimestamp()
       
-      console.log('数据库更新电影 - 输入数据:', {
-        id: movie.id,
-        title: movie.title,
-        current_episode: movie.current_episode,
-        status: movie.status
-      });
+
       
       const query = `
         UPDATE movies SET 
@@ -441,14 +420,12 @@ export class MovieDAO {
         (movie as any).air_status || null,
         (movie as any).notes || null,
         (movie as any).watch_source || null,
-        timestamp,
-        timestamp,
+        (movie as any).date_updated || timestamp,
+        (movie as any).updated_at || timestamp,
         movie.id
       ]
       
-      console.log('数据库更新电影 - SQL参数:', params);
       await db.execute(query, params)
-      console.log('数据库更新电影 - 执行成功');
       
       return { 
         success: true, 

@@ -2,13 +2,13 @@
   <div class="h-full overflow-auto bg-gradient-to-br from-blue-50/30 via-white to-purple-50/30">
     <div class="max-w-4xl mx-auto p-6">
       <!-- 页面标题 -->
-      <div class="mb-8">
+      <div class="mb-8 animate-fade-in-up" style="animation-delay: 0ms;">
         <h1 class="text-3xl font-bold text-gray-900 mb-2">添加影视记录</h1>
         <p class="text-gray-600">记录你的观影体验，构建个人影视库</p>
       </div>
 
       <!-- 搜索影视作品区域 -->
-      <div class="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-gray-200/50 mb-6">
+      <div class="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-gray-200/50 mb-6 animate-fade-in-up" style="animation-delay: 100ms;">
         <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
           <SearchIcon :size="20" class="mr-2 text-purple-600" />
           搜索影视作品
@@ -109,7 +109,7 @@
             </div>
 
       <!-- 影视信息和用户记录 -->
-      <div v-if="form.tmdb_id" class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+      <div v-if="form.tmdb_id" class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8 animate-fade-in-up" style="animation-delay: 200ms;">
         <!-- 封面图片 -->
         <div class="lg:col-span-1">
           <div class="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-gray-200/50">
@@ -193,7 +193,7 @@
       </div>
 
       <!-- 用户记录区域 -->
-      <div v-if="form.tmdb_id" class="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-gray-200/50 mb-8">
+      <div v-if="form.tmdb_id" class="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-gray-200/50 mb-8 animate-fade-in-up" style="animation-delay: 300ms;">
         <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
           <ClipboardIcon :size="20" class="mr-2 text-green-600" />
           用户记录
@@ -297,7 +297,7 @@
       </div>
 
       <!-- 底部按钮区域 -->
-      <div v-if="form.tmdb_id" class="flex justify-end items-center space-x-3 pt-4 border-t border-gray-200/50">
+      <div v-if="form.tmdb_id" class="flex justify-end items-center space-x-3 pt-4 border-t border-gray-200/50 animate-fade-in-up" style="animation-delay: 400ms;">
         <button
           @click="handleReset"
           class="px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 
@@ -330,7 +330,7 @@
       <template #content>
         <div class="flex justify-center">
           <CachedImage
-            :src="getImageURL(form.poster_path, 'w780')"
+            :src="getImageURL(form.poster_path)"
             :alt="form.title"
             class-name="max-w-full max-h-[70vh] object-contain rounded-lg shadow-lg"
             fallback="/placeholder-poster.svg"
@@ -427,8 +427,8 @@ const statusOptions = [
 ];
 
 // 工具函数
-const getImageURL = (path: string | null, size: string = 'w500'): string => {
-  return tmdbAPI.getImageURL(path, size);
+const getImageURL = (path: string | null): string => {
+  return tmdbAPI.getImageURL(path);
 };
 
 const setToLastEpisode = () => {
@@ -454,11 +454,16 @@ const handleTMDbSearch = debounce(async () => {
   tmdbSearchLoading.value = true;
   try {
     const response = await tmdbAPI.searchMulti(tmdbSearchQuery.value);
-    tmdbResults.value = (response.results || [])
-      .filter(item => item.media_type === 'movie' || item.media_type === 'tv')
-      .slice(0, 5);
+    if (response.success && response.data) {
+      tmdbResults.value = (response.data.results || [])
+        .filter(item => item.media_type === 'movie' || item.media_type === 'tv')
+        .slice(0, 5);
+    } else {
+      console.error('TMDb搜索失败:', response.error);
+      tmdbResults.value = [];
+    }
   } catch (error) {
-    console.error('TMDb 搜索失败:', error);
+    console.error('TMDb搜索失败:', error);
     tmdbResults.value = [];
   } finally {
     tmdbSearchLoading.value = false;
@@ -468,12 +473,18 @@ const handleTMDbSearch = debounce(async () => {
 const selectTMDbResult = async (result: TMDbMovie) => {
   try {
     // 获取详细信息
-    let detail: any;
+    let detailResponse;
     if (result.media_type === 'movie') {
-      detail = await tmdbAPI.getMovieDetails(result.id);
+      detailResponse = await tmdbAPI.getMovieDetails(result.id);
     } else {
-      detail = await tmdbAPI.getTVDetails(result.id);
+      detailResponse = await tmdbAPI.getTVDetails(result.id);
     }
+    
+    if (!detailResponse.success || !detailResponse.data) {
+      throw new Error(detailResponse.error || '获取详情失败');
+    }
+    
+    const detail = detailResponse.data;
 
     form.value.title = detail.title || detail.name || '';
     form.value.original_title = detail.original_title || detail.original_name || '';
@@ -493,7 +504,7 @@ const selectTMDbResult = async (result: TMDbMovie) => {
 
     // 主动缓存图片
     if (detail.poster_path) {
-      const imageUrl = tmdbAPI.getImageURL(detail.poster_path, 'w500');
+      const imageUrl = tmdbAPI.getImageURL(detail.poster_path);
       try {
         // 动态导入并缓存图片
         const { prefetchImages } = await import('../utils/imageCache');
@@ -538,9 +549,7 @@ const handleSubmit = async () => {
       current_season: form.value.current_season || undefined
     };
 
-    console.log('准备添加影视数据:', movieData);
     const response = await movieStore.addMovie(movieData);
-    console.log('addMovie响应:', response);
     
     if (response.success) {
       showDialog('success', '成功', '影视作品添加成功！', () => {
@@ -635,4 +644,20 @@ watch(() => form.value.status, (newStatus) => {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-</style> 
+
+/* 页面进入动画 */
+.animate-fade-in-up {
+  animation: fadeInUp 0.4s ease-out both;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+</style>

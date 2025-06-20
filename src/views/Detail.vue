@@ -28,7 +28,7 @@
         <!-- 背景图 -->
         <div class="absolute inset-0">
           <CachedImage v-if="backdropImages.length > 0"
-            :src="getImageURL(backdropImages[currentBackdropIndex], 'w1280')" :alt="movie.title"
+            :src="getBackdropURL(backdropImages[currentBackdropIndex])" :alt="movie.title"
             class-name="w-full h-full object-cover" fallback="/placeholder-poster.svg" />
           <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent"></div>
         </div>
@@ -48,7 +48,7 @@
           <div class="flex items-end space-x-6">
             <!-- 海报 -->
             <div class="flex-shrink-0 cursor-pointer" @click="showPosterPreview">
-              <CachedImage :src="getImageURL(movie.poster_path)" :alt="movie.title"
+              <CachedImage :src="getImageURL(movie?.poster_path)" :alt="movie?.title"
                 class-name="w-48 h-72 object-cover rounded-lg shadow-xl hover:opacity-90 transition-opacity"
                 fallback="/placeholder-poster.svg" />
             </div>
@@ -56,8 +56,13 @@
             <!-- 基本信息 -->
             <div class="flex-1 pb-4">
               <div class="mb-4">
-                <h1 class="text-4xl font-bold mb-2">{{ movie.title }}</h1>
-                <p v-if="movie.original_title && movie.original_title !== movie.title" class="text-xl text-gray-300">
+                <h1 class="text-4xl font-bold mb-2 cursor-pointer hover:text-blue-200 transition-colors max-w-fit" 
+                    @click="copyTitle(movie.title)" 
+                    title="点击复制标题">{{ movie.title }}</h1>
+                <p v-if="movie.original_title && movie.original_title !== movie.title" 
+                   class="text-xl text-gray-300 cursor-pointer hover:text-blue-200 transition-colors max-w-fit"
+                   @click="copyTitle(movie.original_title)"
+                   title="点击复制原标题">
                   {{ movie.original_title }}
                 </p>
               </div>
@@ -239,7 +244,7 @@
       @close="posterPreviewVisible = false" @confirm="posterPreviewVisible = false" :large="true">
       <template #content>
         <div class="flex justify-center">
-          <CachedImage :src="getImageURL(movie?.poster_path, 'w780')" :alt="movie?.title"
+          <CachedImage :src="getImageURL(movie?.poster_path)" :alt="movie?.title"
             class-name="max-w-full max-h-[70vh] object-contain rounded-lg shadow-lg"
             fallback="/placeholder-poster.svg" />
         </div>
@@ -253,7 +258,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, onMounted, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useMovieStore } from '../stores/movie';
 import { tmdbAPI } from '../utils/api';
@@ -265,10 +270,12 @@ import { LinkIcon, TrashIcon } from 'lucide-vue-next';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import type { Movie } from '../types';
 import CachedImage from '../components/ui/CachedImage.vue';
+import { useAppStore } from '../stores/app';
 
 const route = useRoute();
 const router = useRouter();
 const movieStore = useMovieStore();
+const appStore = useAppStore();
 
 // 响应式状态
 const isLoading = ref(true);
@@ -289,8 +296,23 @@ const goBack = () => {
   router.go(-1);
 };
 
-const getImageURL = (path: string | undefined, size: string = 'w500') => {
-  return tmdbAPI.getImageURL(path, size);
+const copyTitle = (text: string) => {
+  navigator.clipboard.writeText(text).then(() => {
+    appStore.modalService.showInfo('复制成功', `已复制"${text}"到剪贴板`);
+  }).catch(err => {
+    console.error('复制失败:', err);
+    appStore.modalService.showError('复制失败', '无法复制到剪贴板');
+  });
+};
+
+const getImageURL = (path: string | undefined) => {
+  return tmdbAPI.getImageURL(path);
+};
+
+// 获取高分辨率背景图片URL
+const getBackdropURL = (path: string | undefined) => {
+  if (!path) return '';
+  return `${APP_CONFIG.tmdb.imageBaseUrl}/w1280${path}`;
 };
 
 const getProgressColor = (progress: number) => {
@@ -346,13 +368,13 @@ const markEpisodeWatched = async () => {
       showDialog('success', '成功', `已标记第 ${newCurrentEpisode} 集为已观看`);
     }
 
-    console.log('准备更新电影数据:', updatedMovie);
+
     const result = await movieStore.updateMovie(updatedMovie);
 
     if (result.success) {
       // 更新本地状态
       movie.value = { ...updatedMovie };
-      console.log('电影数据更新成功');
+
     } else {
       throw new Error(result.error || '更新失败');
     }
@@ -368,9 +390,15 @@ const updateMovieInfo = async () => {
   try {
     showDialog('info', '更新中', '正在从TMDb获取最新信息...');
 
-    const details = movie.value.type === 'tv'
+    const response = movie.value.type === 'tv'
       ? await tmdbAPI.getTVDetails(movie.value.tmdb_id)
       : await tmdbAPI.getMovieDetails(movie.value.tmdb_id);
+
+    if (!response.success || !response.data) {
+      throw new Error(response.error || '获取数据失败');
+    }
+
+    const details = response.data;
 
     const updatedMovie = {
       ...movie.value,
@@ -404,7 +432,7 @@ const handleSaveRecord = async (updatedMovie: Movie) => {
   try {
     updatedMovie.updated_at = new Date().toISOString();
     await movieStore.updateMovie(updatedMovie);
-    movie.value = updatedMovie;
+    movie.value = { ...updatedMovie };
     editModalVisible.value = false;
     showDialog('success', '保存成功', '记录已更新');
   } catch (error) {
@@ -431,26 +459,20 @@ const loadBackdropImages = async () => {
   if (!movie.value?.tmdb_id) return;
 
   try {
-    // 获取影视作品的剧照
-    const endpoint = movie.value.type === 'tv'
-      ? `/tv/${movie.value.tmdb_id}/images`
-      : `/movie/${movie.value.tmdb_id}/images`;
+    // 使用API方法获取背景图片
+    const images = await tmdbAPI.loadBackdropImages(
+      movie.value.tmdb_id,
+      movie.value.type as 'movie' | 'tv'
+    );
 
-    const response = await fetch(`https://api.themoviedb.org/3${endpoint}?api_key=06e492fa8930c108b57945b4fda6f397`);
-    const data = await response.json();
-
-    if (data.backdrops && data.backdrops.length > 0) {
-      // 使用最佳质量的剧照，按投票数排序，取前3张
-      backdropImages.value = data.backdrops
-        .sort((a: any, b: any) => b.vote_average - a.vote_average)
-        .slice(0, 3)
-        .map((img: any) => img.file_path);
+    if (images && images.length > 0) {
+      backdropImages.value = images;
     } else if (movie.value.backdrop_path) {
       // 如果没有剧照，使用默认背景图片
       backdropImages.value = [movie.value.backdrop_path];
     }
   } catch (error) {
-    console.log('获取剧照失败, 使用默认背景图片');
+
     if (movie.value.backdrop_path) {
       backdropImages.value = [movie.value.backdrop_path];
     }
@@ -467,13 +489,16 @@ const dialog = ref({
 });
 
 const showDialog = (type: typeof dialog.value.type, title: string, message: string, onConfirm?: () => void) => {
-  dialog.value = {
-    visible: true,
-    type,
-    title,
-    message,
-    onConfirm: onConfirm || (() => { dialog.value.visible = false; })
-  };
+  // 使用nextTick避免在同一渲染周期内多次更新状态
+  nextTick(() => {
+    dialog.value = {
+      visible: true,
+      type,
+      title,
+      message,
+      onConfirm: onConfirm || (() => { dialog.value.visible = false; })
+    };
+  });
 };
 
 const openExternalLink = (url: string) => {
@@ -487,13 +512,36 @@ onMounted(async () => {
   try {
     isLoading.value = true;
 
-    // 获取电影信息
-    await movieStore.fetchMovies();
-    movie.value = movieStore.movies.find(m => m.id === movieId) || null;
+    // 直接从数据库获取电影信息，确保数据完整
+    const result = await movieStore.fetchMovieDetail(movieId);
+    if (result.success && movieStore.currentMovie) {
+      movie.value = movieStore.currentMovie;
 
-    // 加载背景图片
-    if (movie.value) {
+      // 确保必需字段有默认值
+      if (movie.value.status === undefined || movie.value.status === null) {
+        movie.value.status = 'planned';
+      }
+      if (movie.value.personal_rating === undefined || movie.value.personal_rating === null) {
+        movie.value.personal_rating = 0;
+      }
+      if (movie.value.current_season === undefined || movie.value.current_season === null) {
+        movie.value.current_season = 1;
+      }
+      if (movie.value.current_episode === undefined || movie.value.current_episode === null) {
+        movie.value.current_episode = 0;
+      }
+      if (movie.value.watch_source === undefined || movie.value.watch_source === null) {
+        movie.value.watch_source = '';
+      }
+      if (movie.value.notes === undefined || movie.value.notes === null) {
+        movie.value.notes = '';
+      }
+
+      // 加载背景图片
       await loadBackdropImages();
+    } else {
+
+      movie.value = null;
     }
   } catch (error) {
     console.error('加载电影详情失败:', error);

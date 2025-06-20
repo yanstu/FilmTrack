@@ -44,223 +44,139 @@
       @close="settingsVisible = false"
       @save="handleSettingsSave"
     />
+    
+    <!-- 更新模态框 -->
+    <UpdateModal
+      v-if="updateInfo"
+      v-model:visible="updateModalVisible"
+      :update-info="updateInfo"
+      @update="handleUpdate"
+      @remind-later="updateModalVisible = false"
+    />
+
+
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
-import { listen, UnlistenFn } from '@tauri-apps/api/event';
-import { getCurrentWindow } from '@tauri-apps/api/window';
+import { ref, onMounted, onBeforeUnmount, computed } from 'vue';
 import { useRouter } from 'vue-router';
+import { useAppStore } from './stores/app';
 import TitleBar from './components/common/TitleBar.vue';
 import Navigation from './components/common/Navigation.vue';
 import LoadingOverlay from './components/common/LoadingOverlay.vue';
 import ErrorToast from './components/common/ErrorToast.vue';
 import Modal from './components/ui/Modal.vue';
-import { modalState, modalService } from './utils/modal';
 import SettingsModal from './components/ui/SettingsModal.vue';
-import { useMovieStore } from './stores/movie';
+import UpdateModal from './components/ui/UpdateModal.vue';
+import { listen } from '@tauri-apps/api/event';
+import UpdateService from './services/update';
+import type { UpdateCheckResult } from './types';
+import { open } from '@tauri-apps/plugin-shell';
 
 const router = useRouter();
-let unlistenNavigate: UnlistenFn | null = null;
+const appStore = useAppStore();
 
-// 全局状态
-const isGlobalLoading = ref(false);
-const globalError = ref<string>('');
+// 全局加载状态
+const isGlobalLoading = computed(() => appStore.isLoading);
 
-// 响应式状态
-const isMinimized = ref(false);
-const isMaximized = ref(false);
+// 全局错误状态
+const globalError = computed(() => appStore.error);
+const clearGlobalError = () => appStore.clearError();
+
+// 模态框状态
+const modalState = computed(() => appStore.modalState);
+const modalService = appStore.modalService;
 
 // 设置模态框
 const settingsVisible = ref(false);
 
-// 应用设置
-const appSettings = ref({
-  minimizeToTray: true
-});
-
-// 加载设置
-const loadSettings = () => {
-  const savedSettings = localStorage.getItem('filmtrack-settings');
-  if (savedSettings) {
-    try {
-      appSettings.value = { ...appSettings.value, ...JSON.parse(savedSettings) };
-    } catch (error) {
-      console.error('加载设置失败:', error);
-    }
-  }
-};
-
-// 清除全局错误
-const clearGlobalError = () => {
-  globalError.value = '';
-};
-
-// 处理窗口事件
-const handleWindowEvent = async () => {
-  const appWindow = getCurrentWindow();
-  
-  // 监听窗口关闭事件
-  await listen('tauri://close-requested', () => {
-    // 根据设置决定是隐藏到托盘还是直接退出
-    if (appSettings.value.minimizeToTray) {
-    appWindow.hide();
-    } else {
-      appWindow.close();
-    }
-  });
-  
-  // 监听其他窗口事件
-  await listen('tauri://window-created', () => {
-    console.log('Window created');
-  });
-};
-
-// 初始化应用
-onMounted(async () => {
-  try {
-    // 加载设置
-    loadSettings();
-    
-    // 初始化数据库连接
-    await handleWindowEvent();
-    console.log('FilmTrack 应用已启动');
-
-    // 获取当前窗口实例
-    const appWindow = getCurrentWindow();
-
-    // 监听托盘导航事件
-    unlistenNavigate = await listen('navigate-to-record', () => {
-      router.push({ name: 'Record' });
-    });
-
-    // 禁用右键菜单
-    document.addEventListener('contextmenu', (e) => {
-      e.preventDefault();
-    });
-
-    // 禁用开发者工具和刷新快捷键（生产环境）
-    document.addEventListener('keydown', (e) => {
-      if (!import.meta.env.DEV) {
-        // 禁用F12开发者工具
-        if (e.key === 'F12') {
-          e.preventDefault();
-          return false;
-        }
-        
-        // 禁用Ctrl+Shift+I (开发者工具)
-        if (e.ctrlKey && e.shiftKey && e.key === 'I') {
-          e.preventDefault();
-          return false;
-        }
-        
-        // 禁用Ctrl+Shift+J (控制台)
-        if (e.ctrlKey && e.shiftKey && e.key === 'J') {
-          e.preventDefault();
-          return false;
-        }
-        
-        // 禁用Ctrl+U (查看源代码)
-        if (e.ctrlKey && e.key === 'u') {
-          e.preventDefault();
-          return false;
-        }
-        
-        // 禁用F5和Ctrl+R (刷新)
-        if (e.key === 'F5' || (e.ctrlKey && e.key === 'r')) {
-          e.preventDefault();
-          return false;
-        }
-        
-        // 禁用Ctrl+Shift+C (元素选择器)
-        if (e.ctrlKey && e.shiftKey && e.key === 'C') {
-          e.preventDefault();
-          return false;
-        }
-      }
-    });
-    
-    // 监听窗口状态变化
-    await listen('tauri://resize', async () => {
-      isMaximized.value = await appWindow.isMaximized();
-    });
-
-    await listen('tauri://focus', () => {
-      isMinimized.value = false;
-    });
-
-    await listen('tauri://blur', () => {
-      // 窗口失去焦点时的处理
-    });
-
-    const movieStore = useMovieStore();
-    await movieStore.fetchMovies();
-
-    // 监听设置打开事件
-    window.addEventListener('open-settings', () => {
-      settingsVisible.value = true;
-    });
-  } catch (error) {
-    console.error('应用初始化错误:', error);
-    globalError.value = '应用初始化失败，请重启应用';
-  }
-});
-
-// 清理
-onUnmounted(() => {
-  if (unlistenNavigate) {
-    unlistenNavigate();
-  }
-});
+// 更新相关
+const updateModalVisible = ref(false);
+const updateInfo = ref<UpdateCheckResult | null>(null);
 
 // 处理设置保存
 const handleSettingsSave = (settings: any) => {
-  // 更新内存中的设置
-  appSettings.value = { ...appSettings.value, ...settings };
-  // 保存设置到本地存储
-  localStorage.setItem('filmtrack-settings', JSON.stringify(settings));
-  console.log('设置已保存:', settings);
+  appStore.updateSettings(settings);
+  settingsVisible.value = false;
 };
+
+
+
+// 处理更新
+const handleUpdate = async () => {
+  try {
+    updateModalVisible.value = false;
+    if (updateInfo.value?.download_url) {
+      // 使用Tauri的shell.open打开下载链接
+      await open(updateInfo.value.download_url);
+    }
+  } catch (error) {
+    console.error('处理更新失败:', error);
+    appStore.modalService.showError('更新失败', `处理更新失败: ${error}`);
+  }
+};
+
+
+
+// 监听键盘快捷键
+const handleKeyDown = (e: KeyboardEvent) => {
+  // Ctrl+, 打开设置
+  if (e.ctrlKey && e.key === ',') {
+    e.preventDefault();
+    settingsVisible.value = true;
+  }
+};
+
+// 挂载和卸载事件监听器
+onMounted(async () => {
+  window.addEventListener('keydown', handleKeyDown);
+
+  // 监听打开设置事件
+  window.addEventListener('open-settings', () => {
+    settingsVisible.value = true;
+  });
+
+  // 监听导航到添加记录页面事件
+  listen('navigate-to-record', () => {
+    router.push('/record');
+  });
+
+  // 设置更新回调
+  UpdateService.setUpdateCallback((result: UpdateCheckResult) => {
+    updateInfo.value = result;
+    updateModalVisible.value = true;
+  });
+
+  // 初始化更新监听器
+  try {
+    await UpdateService.initUpdateListener();
+  } catch (error) {
+    console.error('初始化更新监听器失败:', error);
+  }
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleKeyDown);
+  window.removeEventListener('open-settings', () => {
+    settingsVisible.value = true;
+  });
+  // 注意：Tauri的事件监听器会在应用关闭时自动清理
+});
 </script>
 
-<style scoped>
-/* 页面切换动画 */
+<style>
+/* 全局样式 */
+@import './styles/main.css';
+
+/* 页面过渡动画 */
 .page-enter-active,
 .page-leave-active {
-  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  transition: opacity 0.15s ease;
 }
 
-.page-enter-from {
-  opacity: 0;
-  transform: translateX(20px);
-}
-
+.page-enter-from,
 .page-leave-to {
   opacity: 0;
-  transform: translateX(-20px);
-}
-
-/* 自定义滚动条 */
-:deep(.scrollbar-apple) {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
-}
-
-:deep(.scrollbar-apple::-webkit-scrollbar) {
-  width: 6px;
-}
-
-:deep(.scrollbar-apple::-webkit-scrollbar-track) {
-  background: transparent;
-}
-
-:deep(.scrollbar-apple::-webkit-scrollbar-thumb) {
-  background: rgba(156, 163, 175, 0.5);
-  border-radius: 3px;
-}
-
-:deep(.scrollbar-apple::-webkit-scrollbar-thumb:hover) {
-  background: rgba(156, 163, 175, 0.7);
 }
 </style>

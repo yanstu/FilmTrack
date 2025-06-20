@@ -84,7 +84,7 @@
 import { computed, ref } from 'vue'
 
 interface Props {
-  modelValue: number
+  modelValue?: number | null | undefined
   allowHalf?: boolean
   showValue?: boolean
   showReset?: boolean
@@ -101,20 +101,24 @@ const props = withDefaults(defineProps<Props>(), {
   showValue: false,
   showReset: false,
   size: 20,
-  maxRating: 5
+  maxRating: 5,
+  modelValue: 0
 })
 
 const emit = defineEmits<Emits>()
 
 const hoverRating = ref(0)
 
+const currentRating = computed(() => props.modelValue ?? 0)
+
 const displayRating = computed(() => {
-  return hoverRating.value || props.modelValue
+  return hoverRating.value || currentRating.value
 })
 
 const displayValue = computed(() => {
-  if (props.modelValue === 0) return '暂无评分'
-  return props.allowHalf ? props.modelValue.toFixed(1) : props.modelValue.toString()
+  const rating = currentRating.value
+  if (rating === 0) return '暂无评分'
+  return props.allowHalf ? rating.toFixed(1) : rating.toString()
 })
 
 const setRating = (rating: number) => {

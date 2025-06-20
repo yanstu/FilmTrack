@@ -1,17 +1,17 @@
 {
   "name": "filmtrack",
   "private": false,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "个人影视管理平台 - 追踪您的观影足迹",
   "author": "FilmTrack Team",
   "license": "MIT",
-  "homepage": "https://github.com/yourusername/filmtrack",
+  "homepage": "https://github.com/yanstu/filmtrack",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/filmtrack.git"
+    "url": "https://github.com/yanstu/filmtrack.git"
   },
   "bugs": {
-    "url": "https://github.com/yourusername/filmtrack/issues"
+    "url": "https://github.com/yanstu/filmtrack/issues"
   },
   "keywords": [
     "tauri",
@@ -38,32 +38,39 @@
   },
   "dependencies": {
     "@headlessui/vue": "^1.7.23",
-    "@heroicons/vue": "^2.2.0",
-    "@tauri-apps/api": "^2.5.0",
+    "@tauri-apps/api": "latest",
     "@tauri-apps/cli-win32-x64-msvc": "^2.5.0",
-    "@tauri-apps/plugin-opener": "^2",
+    "@tauri-apps/plugin-dialog": "^2.2.2",
+    "@tauri-apps/plugin-fs": "^2.3.0",
+    "@tauri-apps/plugin-http": "^2.4.4",
+    "@tauri-apps/plugin-opener": "latest",
+    "@tauri-apps/plugin-shell": "^2.2.1",
     "@tauri-apps/plugin-sql": "^2.2.0",
     "axios": "^1.10.0",
     "esbuild": "^0.25.5",
     "fdir": "^6.4.6",
     "lucide-vue-next": "^0.514.0",
+    "marked": "^15.0.12",
+    "naive-ui": "^2.42.0",
     "picomatch": "^4.0.2",
     "pinia": "^3.0.3",
     "pinyin-pro": "^3.26.0",
     "rollup": "^4.43.0",
     "tinyglobby": "^0.2.14",
+    "vite": "^6.3.5",
     "vue": "^3.5.13",
     "vue-router": "^4.5.1"
   },
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.10",
     "@tauri-apps/cli": "^2",
+    "@types/marked": "^6.0.0",
     "@vitejs/plugin-vue": "^5.2.1",
     "autoprefixer": "^10.4.16",
     "postcss": "^8.4.32",
     "tailwindcss": "^3.3.6",
     "typescript": "~5.6.2",
-    "vite": "^6.0.3",
+    "vite": "^6.3.5",
     "vue-tsc": "^2.1.10"
   },
   "engines": {

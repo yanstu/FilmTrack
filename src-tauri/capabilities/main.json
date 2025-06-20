@@ -14,6 +14,20 @@
     "sql:allow-execute",
     "sql:allow-select",
     "sql:allow-close",
-    "opener:default"
+    "opener:default",
+    "dialog:default",
+    "dialog:allow-save",
+    "dialog:allow-open",
+    "fs:default",
+    "fs:allow-read-file",
+    "fs:allow-write-file",
+    "fs:allow-read-dir",
+    "fs:allow-exists",
+    "fs:allow-write-text-file",
+    "fs:write-files",
+    "fs:allow-download-write",
+    "fs:allow-download-write-recursive",
+    "http:default",
+    "shell:allow-open"
   ]
-} 
+}

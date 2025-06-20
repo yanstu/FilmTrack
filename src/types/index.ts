@@ -329,4 +329,21 @@ export interface Statistics {
   average_rating: number;
   movies_this_month: number;
   movies_this_year: number;
+}
+
+/** 更新信息 */
+export interface UpdateInfo {
+  version: string;
+  downloadUrl: string;
+  releaseNotes?: string;
+  publishDate?: string;
+}
+
+/** 更新检查结果 */
+export interface UpdateCheckResult {
+  has_update: boolean;
+  version?: string;
+  download_url?: string;
+  release_notes?: string;
+  publish_date?: string;
 } 

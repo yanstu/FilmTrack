@@ -3,6 +3,9 @@
 @import 'tailwindcss/components';
 @import 'tailwindcss/utilities';
 
+/* 导入字体样式 */
+@import '../assets/styles/fonts.css';
+
 /* 自定义CSS变量 */
 :root {
   /* 色彩变量 */
@@ -88,7 +91,7 @@ input, textarea, [contenteditable="true"] {
 /* 禁用右键菜单 */
   body {
   -webkit-context-menu: none;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  font-family: 'PingFang SC', 'PingFang SC', 'Microsoft YaHei', -apple-system, sans-serif;
   font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

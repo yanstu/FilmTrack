@@ -11,6 +11,7 @@ import Library from '../views/Library.vue';
 import Record from '../views/Record.vue';
 import History from '../views/History.vue';
 import Detail from '../views/Detail.vue';
+import Import from '../views/Import/index.vue';
 
 // 路由配置
 const routes: RouteRecordRaw[] = [
@@ -44,6 +45,12 @@ const routes: RouteRecordRaw[] = [
     component: Detail,
     props: true,
     meta: { title: '详情' }
+  },
+  {
+    path: '/import',
+    name: 'Import',
+    component: Import,
+    meta: { title: '数据导入导出' }
   }
 ];
 

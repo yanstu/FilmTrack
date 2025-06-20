@@ -4,20 +4,26 @@
  */
 
 import { createApp } from 'vue';
-import { createPinia } from 'pinia';
 import App from './App.vue';
-import router from './router';
 import './styles/main.css';
 
-// 创建Pinia实例
-const pinia = createPinia();
+// 导入插件系统
+import { registerPlugins, initializePlugins } from './plugins';
 
-// 创建Vue应用
+// 导入浏览器控制工具
+import { initBrowserControl } from './utils/browser';
+
+// 初始化浏览器控制
+initBrowserControl();
+
+// 初始化插件系统
+initializePlugins();
+
+// 创建应用实例
 const app = createApp(App);
 
-// 使用插件
-app.use(router);
-app.use(pinia);
+// 注册所有插件
+registerPlugins(app);
 
 // 挂载应用
 app.mount('#app');

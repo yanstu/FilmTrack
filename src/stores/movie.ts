@@ -5,8 +5,8 @@
 
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { tmdbAPI, withApiResponse } from '../utils/api';
-import { MovieDAO } from '../services/database';
+import { tmdbAPI } from '../utils/api';
+import { databaseAPI } from '../services/database-api';
 import type {
   Movie,
   ParsedMovie,
@@ -22,6 +22,7 @@ import type {
   ViewMode,
   ApiResponse
 } from '../types';
+import { withApiResponse } from '../utils/api-utils';
 
 export const useMovieStore = defineStore('movie', () => {
   // ==================== 状态 ====================
@@ -150,7 +151,7 @@ export const useMovieStore = defineStore('movie', () => {
     return withApiResponse(async () => {
       setLoading(true);
       
-      const response = await MovieDAO.getMovies();
+      const response = await databaseAPI.getMovies();
       if (response.success && response.data) {
         movies.value = response.data;
         pagination.value.total = response.total;
@@ -178,7 +179,7 @@ export const useMovieStore = defineStore('movie', () => {
     return withApiResponse(async () => {
       setLoading(true);
       
-      const response = await MovieDAO.getMovieById(id);
+      const response = await databaseAPI.getMovieById(id);
       if (response.success && response.data) {
         currentMovie.value = response.data;
       } else {
@@ -233,7 +234,7 @@ export const useMovieStore = defineStore('movie', () => {
       };
       
       // 添加到数据库
-      const response = await MovieDAO.addMovie(movieData);
+      const response = await databaseAPI.addMovie(movieData);
       if (!response.success) {
         throw new Error(response.error || '添加影视作品失败');
       }
@@ -258,7 +259,7 @@ export const useMovieStore = defineStore('movie', () => {
     return withApiResponse(async () => {
       setLoading(true);
       
-      const response = await MovieDAO.updateMovie(form);
+      const response = await databaseAPI.updateMovie(form);
       if (response.success && response.data) {
         // 更新当前影视作品（如果正在查看）
         if (currentMovie.value?.id === form.id) {
@@ -287,7 +288,7 @@ export const useMovieStore = defineStore('movie', () => {
     return withApiResponse(async () => {
       setLoading(true);
       
-      const response = await MovieDAO.deleteMovie(id);
+      const response = await databaseAPI.deleteMovie(id);
       if (response.success) {
         // 如果删除的是当前查看的影视作品，清空当前影视作品
         if (currentMovie.value?.id === id) {
@@ -463,8 +464,7 @@ export const useMovieStore = defineStore('movie', () => {
    */
   const fetchWatchHistory = async (movieId?: string): Promise<ApiResponse<WatchHistory[]>> => {
     return withApiResponse(async () => {
-      // 由于移除了watch_history表，这里返回基于movies的模拟历史数据
-      const moviesResponse = await MovieDAO.getMovies();
+      const moviesResponse = await databaseAPI.getMovies();
       if (moviesResponse.success && moviesResponse.data) {
         // 转换movies数据为历史格式
         const historyData = moviesResponse.data

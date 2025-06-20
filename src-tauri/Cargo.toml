@@ -1,13 +1,13 @@
 [package]
 name = "filmtrack"
-version = "0.1.0"
+version = "0.2.0"
 description = "个人影视管理平台 - 追踪您的观影足迹"
 authors = ["FilmTrack Team"]
 license = "MIT"
 readme = "../README.md"
-homepage = "https://github.com/yourusername/filmtrack"
-repository = "https://github.com/yourusername/filmtrack"
-documentation = "https://github.com/yourusername/filmtrack/blob/main/README.md"
+homepage = "https://github.com/yanstu/filmtrack"
+repository = "https://github.com/yanstu/filmtrack"
+documentation = "https://github.com/yanstu/filmtrack/blob/main/README.md"
 keywords = ["tauri", "movie", "tv", "tracker", "manager"]
 categories = ["multimedia", "database", "gui"]
 edition = "2021"
@@ -24,6 +24,7 @@ copyright = "Copyright © 2025 FilmTrack Team"
 # to make the lib name unique and wouldn't conflict with the bin name.
 # This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
 name = "filmtrack_lib"
+path = "src/lib.rs"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
@@ -34,11 +35,26 @@ tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-opener = "2"
 tauri-plugin-sql = { version = "2", features = ["sqlite"] }
 tauri-plugin-single-instance = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-http = "2"
+tauri-plugin-shell = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 uuid = { version = "1.0", features = ["v4"] }
 chrono = { version = "0.4", features = ["serde"] }
-reqwest = { version = "0.11", features = ["json"] }
-tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
+reqwest = { version = "0.11", features = ["json", "stream"] }
+tokio = { version = "1.0", features = ["full", "macros", "rt-multi-thread"] }
 base64 = "0.21"
+scraper = "0.23.1"
+anyhow = "1.0"
+lazy_static = "1.4.0"
+regex = "1.11.1"
+open = "5.0.1"
+futures-util = "0.3.31"
+
+[features]
+# this feature is used for production builds or when `devPath` points to the filesystem
+# DO NOT REMOVE!!
+custom-protocol = ["tauri/custom-protocol"]
 

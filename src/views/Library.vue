@@ -1,9 +1,44 @@
 <template>
-  <div class="h-full bg-gray-50/50 backdrop-blur-xl">
+  <div class="h-full bg-gray-50/50 relative">
     <!-- 搜索头部 -->
-    <div class="px-8 py-6 bg-white/80 backdrop-blur-xl border-b border-gray-200/50">
+    <div class="sticky top-0 z-50 px-8 py-6 bg-white/90 backdrop-blur-lg border-b border-gray-200/30 animate-fade-in-down" style="animation-delay: 0ms;">
       <div class="w-full">
-        <h1 class="text-2xl font-bold text-gray-900 mb-6">影视库</h1>
+        <div class="flex justify-between items-center mb-6">
+          <h1 class="text-2xl font-bold text-gray-900">影视库</h1>
+          
+          <!-- 批量操作按钮 -->
+          <div class="flex items-center space-x-3">
+            <button
+              v-if="!isSelectionMode"
+              @click="enableSelectionMode"
+              class="flex items-center px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
+            >
+              <CheckSquare :size="16" class="mr-2" />
+              批量操作
+            </button>
+            
+            <div v-else class="flex items-center space-x-3">
+              <span class="text-sm text-gray-600">已选择 {{ selectedItems.length }} 项</span>
+              
+              <button
+                @click="confirmDelete"
+                class="flex items-center px-3 py-2 rounded-lg bg-red-100 hover:bg-red-200 text-red-700 transition-colors"
+                :disabled="selectedItems.length === 0"
+              >
+                <Trash2 :size="16" class="mr-2" />
+                删除所选
+              </button>
+              
+              <button
+                @click="cancelSelectionMode"
+                class="flex items-center px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
+              >
+                <X :size="16" class="mr-2" />
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
         
         <!-- 搜索和筛选区域 -->
         <div class="flex flex-col lg:flex-row lg:items-center space-y-4 lg:space-y-0 lg:space-x-6 w-full">
@@ -26,7 +61,7 @@
           </div>
           
           <!-- 筛选区域 -->
-          <div class="flex items-center space-x-3 flex-shrink-0">
+          <div class="flex items-center space-x-3 flex-shrink-0 relative z-50">
             <!-- 类型筛选 -->
             <div class="w-32">
               <HeadlessSelect
@@ -47,17 +82,19 @@
               />
             </div>
 
+
+
             <!-- 视图切换 -->
             <div class="flex bg-gray-100/80 backdrop-blur-sm rounded-xl p-1">
               <button
-                @click="viewMode = 'grid'"
+                @click="saveViewMode('grid')"
                 class="p-2 rounded-lg transition-all duration-200"
                 :class="viewMode === 'grid' ? 'bg-white shadow-sm' : 'hover:bg-white/50'"
               >
                 <GridIcon :size="18" class="text-gray-600" />
               </button>
               <button
-                @click="viewMode = 'list'"
+                @click="saveViewMode('list')"
                 class="p-2 rounded-lg transition-all duration-200"
                 :class="viewMode === 'list' ? 'bg-white shadow-sm' : 'hover:bg-white/50'"
               >
@@ -78,10 +115,15 @@
     </div>
 
     <!-- 搜索结果 -->
-    <div class="p-8">
-      <div class="max-w-7xl mx-auto">
+    <div
+      id="scroll-container"
+      ref="scrollContainer"
+      class="absolute inset-0 pt-0 pb-8 px-8 animate-fade-in-up overflow-y-auto"
+      style="animation-delay: 150ms;"
+    >
+      <div class="max-w-7xl mx-auto pt-48">
         <!-- 加载状态 -->
-        <div v-if="infiniteScroll.loading.value && infiniteScroll.items.value.length === 0" 
+        <div v-if="infiniteScroll.loading.value && infiniteScroll.items.value.length === 0"
              class="flex items-center justify-center h-64">
           <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
@@ -98,33 +140,46 @@
           <div
             v-for="movie in infiniteScroll.items.value"
             :key="movie.id"
-            class="group cursor-pointer"
-            @click="navigateToDetail(movie.id)"
+            class="group"
+            :class="{'cursor-pointer': !isSelectionMode}"
+            @click="isSelectionMode ? toggleSelectItem(movie.id) : navigateToDetail(movie.id)"
           >
-            <div class="bg-white/80 backdrop-blur-sm rounded-2xl p-4 border border-gray-200/50 
-                        hover:bg-white/90 hover:border-gray-300/50 transition-all duration-300 
-                        hover:shadow-xl hover:shadow-blue-500/10 hover:-translate-y-1">
+            <div class="relative bg-white/90 rounded-2xl p-4 border border-gray-200/50
+                        hover:bg-white hover:border-gray-300/50 transition-colors duration-300
+                        hover:shadow-md"
+                 :class="{'border-blue-500 bg-blue-50/50': isItemSelected(movie.id)}"
+                 style="transform: none; will-change: auto; isolation: auto;">
+              
+              <!-- 选择框 -->
+              <div v-if="isSelectionMode" class="absolute top-2 right-2 z-10">
+                <div 
+                  class="w-6 h-6 rounded-full flex items-center justify-center"
+                  :class="isItemSelected(movie.id) ? 'bg-blue-500' : 'bg-white/80 border border-gray-300'"
+                >
+                  <CheckIcon v-if="isItemSelected(movie.id)" :size="14" class="text-white" />
+                </div>
+              </div>
+              
               <div class="aspect-[2/3] mb-4 overflow-hidden rounded-xl">
-                <img
+                <CachedImage
                   :src="getImageURL(movie.poster_path)"
                   :alt="movie.title"
                   class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  @error="handleImageError"
+                  fallback="/placeholder-poster.svg"
                 />
               </div>
-              <h3 class="font-semibold text-gray-900 mb-1 line-clamp-2">{{ movie.title }}</h3>
-              <p class="text-sm text-gray-600 mb-2">{{ movie.year }}</p>
-              <div class="flex items-center justify-between">
+              <div class="flex items-start justify-between mb-2">
+                <h3 class="font-semibold text-gray-900 line-clamp-2 flex-1 pr-2">{{ movie.title }}</h3>
                 <span
-                  class="px-2 py-1 rounded-full text-xs font-medium"
+                  class="px-2 py-1 rounded-full text-xs font-medium flex-shrink-0"
                   :class="getStatusBadgeClass(movie.status)"
                 >
                   {{ getStatusLabel(movie.status) }}
                 </span>
-                <div v-if="movie.user_rating" class="flex items-center space-x-1">
-                  <StarIcon :size="14" class="text-yellow-400 fill-yellow-400" />
-                  <span class="text-sm text-gray-600">{{ movie.user_rating }}</span>
-                </div>
+              </div>
+              <div v-if="movie.user_rating" class="flex items-center space-x-1">
+                <StarIcon :size="14" class="text-yellow-400 fill-yellow-400" />
+                <span class="text-sm text-gray-600">{{ movie.user_rating }}</span>
               </div>
             </div>
           </div>
@@ -135,18 +190,32 @@
           <div
             v-for="movie in infiniteScroll.items.value"
             :key="movie.id"
-            class="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-gray-200/50 
-                   hover:bg-white/90 hover:border-gray-300/50 transition-all duration-200 
-                   hover:shadow-lg hover:shadow-blue-500/5 cursor-pointer"
-            @click="navigateToDetail(movie.id)"
+            class="bg-white/90 rounded-2xl p-6 border border-gray-200/50
+                   hover:bg-white hover:border-gray-300/50 transition-colors duration-200
+                   hover:shadow-md"
+            style="transform: none; will-change: auto; isolation: auto;"
+            :class="{'cursor-pointer': !isSelectionMode, 'border-blue-500 bg-blue-50/50': isItemSelected(movie.id)}"
+            @click="isSelectionMode ? toggleSelectItem(movie.id) : navigateToDetail(movie.id)"
           >
             <div class="flex items-start space-x-4">
-              <CachedImage
-                :src="getImageURL(movie.poster_path)"
-                :alt="movie.title"
-                class-name="w-20 h-30 object-cover rounded-xl shadow-sm"
-                fallback="/placeholder-poster.svg"
-              />
+              <!-- 选择框 -->
+              <div v-if="isSelectionMode" class="flex-shrink-0 pt-2">
+                <div 
+                  class="w-6 h-6 rounded-full flex items-center justify-center"
+                  :class="isItemSelected(movie.id) ? 'bg-blue-500' : 'bg-white/80 border border-gray-300'"
+                >
+                  <CheckIcon v-if="isItemSelected(movie.id)" :size="14" class="text-white" />
+                </div>
+              </div>
+              
+              <div class="overflow-hidden rounded-xl">
+                <CachedImage
+                  :src="getImageURL(movie.poster_path)"
+                  :alt="movie.title"
+                  class-name="w-20 h-30 object-cover shadow-sm transition-transform duration-300 hover:scale-110"
+                  fallback="/placeholder-poster.svg"
+                />
+              </div>
               
               <div class="flex-1">
                 <div class="flex items-start justify-between">
@@ -180,14 +249,14 @@
         </div>
 
         <!-- 加载更多指示器 -->
-        <div v-if="infiniteScroll.loading.value && infiniteScroll.items.value.length > 0" 
+        <div v-if="infiniteScroll.loading.value && infiniteScroll.items.value.length > 0"
              class="flex items-center justify-center py-8">
           <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
           <span class="ml-3 text-gray-600">加载更多...</span>
         </div>
 
         <!-- 到底了 -->
-        <div v-else-if="!infiniteScroll.hasMore.value && infiniteScroll.items.value.length > 0" 
+        <div v-else-if="!infiniteScroll.hasMore.value && infiniteScroll.items.value.length > 0"
              class="text-center py-8">
           <p class="text-gray-500">已显示全部结果</p>
         </div>
@@ -195,11 +264,46 @@
         <!-- 错误状态 -->
         <div v-if="infiniteScroll.error.value" class="text-center py-8">
           <p class="text-red-600 mb-4">{{ infiniteScroll.error.value }}</p>
-          <button 
+          <button
             @click="infiniteScroll.refresh()"
             class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
             重试
+          </button>
+        </div>
+
+
+      </div>
+    </div>
+    
+    <!-- 删除确认对话框 -->
+    <div v-if="showDeleteConfirm" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+      <div class="bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl">
+        <h3 class="text-xl font-bold text-gray-900 mb-4">确认删除</h3>
+        <p class="text-gray-700 mb-6">
+          您确定要删除选中的 {{ selectedItems.length }} 个影视作品吗？此操作无法撤销。
+        </p>
+        <div class="mb-4">
+          <input 
+            v-model="confirmInput"
+            type="text"
+            placeholder="输入 y 确认删除"
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div class="flex justify-end space-x-4">
+          <button 
+            @click="cancelDelete"
+            class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+          >
+            取消
+          </button>
+          <button 
+            @click="executeDelete"
+            :disabled="confirmInput !== 'y'"
+            class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            删除
           </button>
         </div>
       </div>
@@ -208,21 +312,29 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useMovieStore } from '../stores/movie';
 import { debounce, tmdbAPI } from '../utils/api';
+
 import { STATUS_OPTIONS, TYPE_OPTIONS, getStatusLabel, getTypeLabel, getStatusBadgeClass } from '../utils/constants';
-import { fuzzySearch, type SearchResult } from '../utils/search';
+import { fuzzySearch } from '../utils/search';
 import { useInfiniteScroll, type LoadFunction } from '../composables/useInfiniteScroll';
+
 import HeadlessSelect from '../components/ui/HeadlessSelect.vue';
 import { 
   Search as SearchIcon,
   Grid3x3 as GridIcon,
   List as ListIcon,
-  Star as StarIcon
+  Star as StarIcon,
+  CheckSquare,
+  Trash2,
+  X,
+  Check as CheckIcon
 } from 'lucide-vue-next';
 import CachedImage from '../components/ui/CachedImage.vue';
+import StorageService, { StorageKey } from '../utils/storage';
+import { useAppStore } from '../stores/app';
 
 interface MovieRecord {
   id: string;
@@ -239,6 +351,7 @@ interface MovieRecord {
 const router = useRouter();
 const route = useRoute();
 const movieStore = useMovieStore();
+const appStore = useAppStore();
 
 // 响应式状态
 const searchQuery = ref('');
@@ -246,6 +359,26 @@ const selectedType = ref('');
 const selectedStatus = ref('');
 const viewMode = ref<'grid' | 'list'>('grid');
 const allMovies = ref<MovieRecord[]>([]);
+
+// 批量选择相关状态
+const isSelectionMode = ref(false);
+const selectedItems = ref<string[]>([]);
+const showDeleteConfirm = ref(false);
+const confirmInput = ref('');
+
+// 加载视图模式
+const loadViewMode = () => {
+  const saved = StorageService.get<'grid' | 'list'>(StorageKey.LIBRARY_VIEW_MODE);
+  if (saved && ['grid', 'list'].includes(saved)) {
+    viewMode.value = saved;
+  }
+};
+
+// 保存视图模式到存储
+const saveViewMode = (mode: 'grid' | 'list') => {
+  viewMode.value = mode;
+  StorageService.set(StorageKey.LIBRARY_VIEW_MODE, mode);
+};
 
 // 计算过滤后的数据
 const filteredItems = computed(() => {
@@ -268,8 +401,10 @@ const filteredItems = computed(() => {
       enablePinyin: true,
       minLength: 1
     });
-    return searchResults.map(result => result.item);
+    results = searchResults.map(result => result.item);
   }
+
+
 
   return results;
 });
@@ -278,17 +413,22 @@ const filteredItems = computed(() => {
 const loadMovies: LoadFunction<MovieRecord> = async (page: number, pageSize: number) => {
   try {
     // 如果是第一页，先加载所有数据
-    if (page === 1 && allMovies.value.length === 0) {
+    if (page === 1) {
       const response = await movieStore.fetchMovies();
       if (response?.success) {
         allMovies.value = movieStore.movies;
       }
     }
 
+    // 等待 filteredItems 计算完成
+    await nextTick();
+
     const startIndex = (page - 1) * pageSize;
     const endIndex = startIndex + pageSize;
     const items = filteredItems.value.slice(startIndex, endIndex);
     const hasMore = endIndex < filteredItems.value.length;
+
+
 
     return {
       data: items,
@@ -301,11 +441,15 @@ const loadMovies: LoadFunction<MovieRecord> = async (page: number, pageSize: num
   }
 };
 
-// 使用无限滚动
+// 滚动容器引用
+const scrollContainer = ref<HTMLElement>();
+
+// 使用无限滚动，指定滚动容器
 const infiniteScroll = useInfiniteScroll(loadMovies, {
   pageSize: 20,
   threshold: 200,
-  immediate: true
+  immediate: false, // 先不立即加载，等容器准备好
+  container: '#scroll-container' // 使用选择器
 });
 
 // 处理搜索输入
@@ -325,13 +469,124 @@ const navigateToDetail = (movieId: string) => {
 
 // 获取图片URL
 const getImageURL = (path: string | undefined) => {
-  return tmdbAPI.getImageURL(path, 'w342');
+  return tmdbAPI.getImageURL(path);
 };
 
-// 处理图片错误
-const handleImageError = (event: Event) => {
-  const img = event.target as HTMLImageElement;
-  img.src = '/placeholder-poster.svg';
+// 启用选择模式
+const enableSelectionMode = () => {
+  isSelectionMode.value = true;
+  selectedItems.value = [];
+};
+
+// 取消选择模式
+const cancelSelectionMode = () => {
+  isSelectionMode.value = false;
+  selectedItems.value = [];
+};
+
+// 切换选择项
+const toggleSelectItem = (id: string) => {
+  const index = selectedItems.value.indexOf(id);
+  if (index === -1) {
+    selectedItems.value.push(id);
+  } else {
+    selectedItems.value.splice(index, 1);
+  }
+};
+
+// 检查项目是否被选中
+const isItemSelected = (id: string) => {
+  return selectedItems.value.includes(id);
+};
+
+// 确认删除
+const confirmDelete = () => {
+  if (selectedItems.value.length === 0) return;
+  showDeleteConfirm.value = true;
+  confirmInput.value = '';
+};
+
+// 取消删除
+const cancelDelete = () => {
+  showDeleteConfirm.value = false;
+  confirmInput.value = '';
+};
+
+// 执行删除
+const executeDelete = async () => {
+  if (confirmInput.value !== 'y') return;
+  
+  if (selectedItems.value.length === 0) {
+    appStore.modalService.showInfo(
+      '提示',
+      '没有选择任何影视作品'
+    );
+    return;
+  }
+  
+  try {
+    appStore.setLoading(true);
+    
+    // 记录删除成功的数量
+    let successCount = 0;
+    let failedCount = 0;
+    
+    // 添加延迟函数
+    const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+    
+    // 不使用事务，逐个删除选中的项目
+    for (const id of selectedItems.value) {
+      try {
+        const result = await movieStore.deleteMovie(id);
+        if (result.success) {
+          successCount++;
+        } else {
+          failedCount++;
+          console.error(`删除影视作品 ${id} 失败:`, result.error);
+        }
+        // 每次删除操作后添加延迟，避免数据库锁定
+        await delay(100);
+      } catch (error) {
+        failedCount++;
+        console.error(`删除影视作品 ${id} 出错:`, error);
+        // 出错后也添加延迟
+        await delay(100);
+      }
+    }
+    
+    // 添加额外延迟，确保所有操作完成
+    await delay(500);
+    
+    // 刷新数据
+    await movieStore.fetchMovies();
+    allMovies.value = movieStore.movies;
+    
+    // 重置状态
+    showDeleteConfirm.value = false;
+    cancelSelectionMode();
+    infiniteScroll.refresh();
+    
+    // 显示结果消息
+    if (failedCount === 0) {
+      appStore.modalService.showInfo(
+        '删除成功',
+        `已成功删除 ${successCount} 个影视作品`
+      );
+    } else {
+      appStore.modalService.showWarning(
+        '部分删除成功',
+        `成功删除 ${successCount} 个影视作品，失败 ${failedCount} 个`
+      );
+    }
+  } catch (error) {
+    console.error('批量删除失败:', error);
+    appStore.modalService.showError(
+      '删除失败',
+      `删除过程中发生错误: ${error}`
+    );
+  } finally {
+    appStore.setLoading(false);
+  }
 };
 
 // 监听筛选条件变化
@@ -346,6 +601,9 @@ watch(searchQuery, () => {
 
 // 初始化
 onMounted(() => {
+  // 加载保存的视图模式
+  loadViewMode();
+
   // 从查询参数初始化筛选器
   if (route.query.status) {
     selectedStatus.value = route.query.status as string;
@@ -356,6 +614,11 @@ onMounted(() => {
   if (route.query.query) {
     searchQuery.value = route.query.query as string;
   }
+
+  // 手动触发初始加载
+  nextTick(() => {
+    infiniteScroll.triggerLoad();
+  });
 });
 </script>
 
@@ -366,4 +629,35 @@ onMounted(() => {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-</style> 
+
+/* 页面进入动画 */
+.animate-fade-in-down {
+  animation: fadeInDown 0.4s ease-out both;
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.4s ease-out both;
+}
+
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-15px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+</style>

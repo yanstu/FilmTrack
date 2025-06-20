@@ -200,7 +200,7 @@ const navigateToDetail = (id: string) => {
 };
 
 const getImageURL = (path: string | undefined) => {
-  return tmdbAPI.getImageURL(path, 'w185');
+  return tmdbAPI.getImageURL(path);
 };
 
 const handleImageError = (event: Event) => {
@@ -226,11 +226,25 @@ const formatGroupDate = (dateString: string) => {
   } else if (date.toDateString() === yesterday.toDateString()) {
     return '昨天';
   } else {
-    return date.toLocaleDateString('zh-CN', {
-      month: 'long',
-      day: 'numeric',
-      weekday: 'long'
-    });
+    // 检查是否是今年
+    const isCurrentYear = date.getFullYear() === today.getFullYear();
+
+    if (isCurrentYear) {
+      // 今年的日期不显示年份
+      return date.toLocaleDateString('zh-CN', {
+        month: 'long',
+        day: 'numeric',
+        weekday: 'long'
+      });
+    } else {
+      // 非今年的日期显示年份
+      return date.toLocaleDateString('zh-CN', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        weekday: 'long'
+      });
+    }
   }
 };
 

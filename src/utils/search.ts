@@ -217,7 +217,7 @@ export function highlightMatch(text: string, query: string, enablePinyin = true)
         return `<mark>${text}</mark>`;
       }
     } catch (error) {
-      console.warn('拼音高亮失败:', error);
+      // 拼音高亮失败时静默处理
     }
   }
 

@@ -7,9 +7,7 @@ export const APP_CONFIG = {
   // 应用基础信息
   app: {
     name: 'FilmTrack',
-    version: '0.1.0',
-    author: 'yanstu',
-    description: '个人影视管理平台'
+    description: '个人影视管理平台',
   },
 
   // TMDb API配置
@@ -17,48 +15,40 @@ export const APP_CONFIG = {
     apiKey: '06e492fa8930c108b57945b4fda6f397',
     baseUrl: 'https://api.themoviedb.org/3',
     imageBaseUrl: 'https://image.tmdb.org/t/p',
-    // 图片尺寸配置
-    imageSizes: {
-      poster: 'w500',
-      backdrop: 'w1280',
-      profile: 'w185',
-      logo: 'w185'
-    }
+    // API请求配置
+    request: {
+      interval: 400, // 请求间隔，毫秒
+      timeout: 10000, // 请求超时，毫秒
+      retries: 3, // 重试次数
+      enableTitleMatching: true, // 启用标题匹配
+      cacheTimeInHours: 24, // API缓存时长（小时）
+    },
+  },
+
+  // API通用配置
+  api: {
+    cache: {
+      expirationHours: 24, // 缓存过期时间（小时）
+      enabled: true, // 是否启用缓存
+    },
   },
 
   // 数据库配置
   database: {
     name: 'filmtrack.db',
-    version: 1
   },
 
-  // UI配置
-  ui: {
-    // 窗口配置
-    window: {
-      width: 1600,
-      height: 900,
-      minWidth: 1200,
-      minHeight: 800
-    },
-    // 动画配置
-    animation: {
-      duration: 300,
-      easing: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)'
-    },
-    // 分页配置
-    pagination: {
-      defaultPageSize: 20,
-      maxPageSize: 100
-    }
+  // 存储配置
+  storage: {
+    keyPrefix: 'filmtrack', // 存储键前缀
+    expirationTimeInHours: 24 * 7, // 缓存过期时间（小时）
   },
-
   // 功能特性配置
   features: {
     // 支持的影视类型（参考TMDb API）
     mediaTypes: {
       movie: '电影',
-      tv: '电视剧'
+      tv: '电视剧',
     },
     // 观看状态
     watchStatus: {
@@ -66,13 +56,7 @@ export const APP_CONFIG = {
       completed: '已看',
       planned: '想看',
       paused: '暂停',
-      dropped: '弃坑'
-    },
-    // 评分范围
-    rating: {
-      min: 0,
-      max: 10,
-      step: 0.5
+      dropped: '弃坑',
     },
     // 播出状态配置
     airStatus: {
@@ -82,13 +66,18 @@ export const APP_CONFIG = {
       pilot: '试播',
       planned: '计划中',
       'Returning Series': '连载中',
-      'Ended': '已完结',
-      'Canceled': '已取消',
-      'In Production': '制作中'
-    }
-  }
+      Ended: '已完结',
+      Canceled: '已取消',
+      'In Production': '制作中',
+    },
+    // 导入设置
+    import: {
+      batchSize: 10, // 批量导入数量
+      preserveFields: ['rating', 'watched_date', 'comment', 'current_season'], // 保留字段
+    },
+  },
 } as const;
 
 export type AppConfig = typeof APP_CONFIG;
 export type MediaType = keyof typeof APP_CONFIG.features.mediaTypes;
-export type WatchStatus = keyof typeof APP_CONFIG.features.watchStatus; 
+export type WatchStatus = keyof typeof APP_CONFIG.features.watchStatus;

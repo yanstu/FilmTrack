@@ -87,15 +87,29 @@ export function useInfiniteScroll<T>(
    */
   const checkShouldLoad = (): boolean => {
     if (!canLoadMore.value) return false;
-    
-    if (scrollContainer === window) {
-      const { scrollY, innerHeight } = window;
-      const { scrollHeight } = document.documentElement;
-      return scrollHeight - (scrollY + innerHeight) <= config.threshold;
-    } else {
-      const element = scrollContainer as HTMLElement;
-      const { scrollTop, clientHeight, scrollHeight } = element;
-      return scrollHeight - (scrollTop + clientHeight) <= config.threshold;
+
+    try {
+      if (scrollContainer === window) {
+        const scrollY = window.pageYOffset || document.documentElement.scrollTop;
+        const innerHeight = window.innerHeight;
+        const scrollHeight = Math.max(
+          document.body.scrollHeight,
+          document.documentElement.scrollHeight
+        );
+
+        const distanceFromBottom = scrollHeight - (scrollY + innerHeight);
+        return distanceFromBottom <= config.threshold;
+      } else {
+        const element = scrollContainer as HTMLElement;
+        if (!element) return false;
+
+        const { scrollTop, clientHeight, scrollHeight } = element;
+        const distanceFromBottom = scrollHeight - (scrollTop + clientHeight);
+        return distanceFromBottom <= config.threshold;
+      }
+    } catch (error) {
+      console.warn('检查滚动位置时出错:', error);
+      return false;
     }
   };
   
@@ -184,8 +198,19 @@ export function useInfiniteScroll<T>(
    * 添加滚动监听
    */
   const addScrollListener = () => {
+    removeScrollListener(); // 先移除旧的监听器
     scrollContainer = getScrollContainer();
-    scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
+
+    if (scrollContainer) {
+      scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
+
+      // 立即检查一次是否需要加载
+      nextTick(() => {
+        if (checkShouldLoad()) {
+          loadMore();
+        }
+      });
+    }
   };
   
   /**
@@ -281,9 +306,3 @@ export function useInfiniteScroll<T>(
   };
 }
 
-/**
- * 创建只读的响应式引用
- */
-function readonly<T>(ref: any) {
-  return computed(() => ref.value);
-} 

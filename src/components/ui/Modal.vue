@@ -87,7 +87,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, nextTick } from 'vue'
 import {
   Dialog,
   DialogPanel,
@@ -96,11 +96,11 @@ import {
   TransitionRoot,
 } from '@headlessui/vue'
 import { 
-  CheckCircleIcon, 
-  ExclamationTriangleIcon, 
-  InformationCircleIcon,
-  XCircleIcon 
-} from '@heroicons/vue/24/outline'
+  CheckCircle,
+  AlertTriangle,
+  Info,
+  XCircle
+} from 'lucide-vue-next'
 
 type ModalType = 'success' | 'warning' | 'error' | 'info' | 'confirm'
 
@@ -133,12 +133,12 @@ const emit = defineEmits<Emits>()
 
 const iconComponent = computed(() => {
   switch (props.type) {
-    case 'success': return CheckCircleIcon
-    case 'warning': return ExclamationTriangleIcon
-    case 'error': return XCircleIcon
-    case 'info': return InformationCircleIcon
-    case 'confirm': return ExclamationTriangleIcon
-    default: return InformationCircleIcon
+    case 'success': return CheckCircle
+    case 'warning': return AlertTriangle
+    case 'error': return XCircle
+    case 'info': return Info
+    case 'confirm': return AlertTriangle
+    default: return Info
   }
 })
 
@@ -165,16 +165,16 @@ const confirmButtonClass = computed(() => {
 })
 
 const closeModal = () => {
-  emit('close')
+  nextTick(() => {
+    emit('close')
+  })
 }
 
 const handleConfirm = () => {
   emit('confirm')
-  closeModal()
 }
 
 const handleCancel = () => {
   emit('cancel')
-  closeModal()
 }
 </script> 
