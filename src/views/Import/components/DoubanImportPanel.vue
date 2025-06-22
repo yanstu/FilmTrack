@@ -43,7 +43,7 @@
           导入说明
         </h3>
         <ul class="text-xs text-blue-700 list-disc pl-5 space-y-1.5">
-          <li class="hover:text-blue-800 transition-colors duration-200">导入过程中请勿关闭应用</li>
+          <li class="hover:text-blue-800 transition-colors duration-200">导入过程中请勿关闭应用或切换界面</li>
           <li class="hover:text-blue-800 transition-colors duration-200">导入时会自动匹配TMDb数据，以获取更完整的影视信息</li>
           <li class="hover:text-blue-800 transition-colors duration-200">导入的评分、观看的季数、观看日期和评语将保留，其他信息将使用TMDb数据</li>
         </ul>

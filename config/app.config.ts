@@ -17,7 +17,7 @@ export const APP_CONFIG = {
     imageBaseUrl: 'https://image.tmdb.org/t/p',
     // API请求配置
     request: {
-      interval: 400, // 请求间隔，毫秒
+      interval: 200, // 请求间隔，毫秒
       timeout: 10000, // 请求超时，毫秒
       retries: 3, // 重试次数
       enableTitleMatching: true, // 启用标题匹配
@@ -69,11 +69,6 @@ export const APP_CONFIG = {
       Ended: '已完结',
       Canceled: '已取消',
       'In Production': '制作中',
-    },
-    // 导入设置
-    import: {
-      batchSize: 10, // 批量导入数量
-      preserveFields: ['rating', 'watched_date', 'comment', 'current_season'], // 保留字段
     },
   },
 } as const;

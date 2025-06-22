@@ -204,8 +204,6 @@ export function useDoubanImport() {
       importProgress.value.total = movieCount;
       await addLog('info', `找到 ${movieCount} 部电影/电视剧，开始导入...`);
       
-      // 分批次导入，每次按照配置的批次大小
-      const batchSize = APP_CONFIG.features.import.batchSize;
       let start = 0;
       
       while (start < movieCount && !shouldStop.value) {
@@ -215,9 +213,6 @@ export function useDoubanImport() {
           start 
         });
 
-
-        
-        
         if (movies.length === 0) break;
         
         // 处理每部电影

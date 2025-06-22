@@ -74,16 +74,54 @@ export function getCoreTitlePart(title: string): string {
  */
 export function generateSearchKeywords(title: string): string {
   if (!title) return '';
-  
+
+  // 先处理特殊情况：如果标题包含换行符，取第一行
+  const firstLine = title.split(/[\r\n]/)[0].trim();
+
   // 获取核心标题
-  const coreTitle = getCoreTitlePart(title);
-  
+  const coreTitle = getCoreTitlePart(firstLine);
+
   // 如果核心标题太短，则使用清洗后的完整标题
   if (coreTitle.length < 2) {
-    return cleanTitle(title);
+    return cleanTitle(firstLine);
   }
-  
+
   return coreTitle;
+}
+
+/**
+ * 生成多个搜索关键词变体
+ * @param title 原始标题
+ * @returns 搜索关键词数组
+ */
+export function generateSearchVariants(title: string): string[] {
+  if (!title) return [];
+
+  const variants: string[] = [];
+
+  // 原始标题（去除换行）
+  const cleanedOriginal = title.replace(/[\r\n]/g, ' ').trim();
+  if (cleanedOriginal) variants.push(cleanedOriginal);
+
+  // 斜杠分隔的第一部分
+  const firstPart = cleanedOriginal.split(/\s*[\/\|]\s*/)[0].trim();
+  if (firstPart && firstPart !== cleanedOriginal) variants.push(firstPart);
+
+  // 清洗后的标题
+  const cleaned = cleanTitle(cleanedOriginal);
+  if (cleaned && !variants.includes(cleaned)) variants.push(cleaned);
+
+  // 核心标题
+  const core = getCoreTitlePart(cleanedOriginal);
+  if (core && core.length >= 2 && !variants.includes(core)) variants.push(core);
+
+  // 去除括号内容的版本
+  const withoutParentheses = cleanedOriginal.replace(/\s*[\(（][^)）]*[\)）]\s*/g, ' ').trim();
+  if (withoutParentheses && !variants.includes(withoutParentheses)) {
+    variants.push(withoutParentheses);
+  }
+
+  return variants.filter(v => v.length > 0);
 }
 
 /**

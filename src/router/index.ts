@@ -7,10 +7,10 @@ import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 
 // 导入页面组件
 import Home from '../views/Home.vue';
-import Library from '../views/Library.vue';
-import Record from '../views/Record.vue';
+import Library from '../views/Library/index.vue';
+import Record from '../views/Record/index.vue';
 import History from '../views/History.vue';
-import Detail from '../views/Detail.vue';
+import Detail from '../views/Detail/index.vue';
 import Import from '../views/Import/index.vue';
 
 // 路由配置
@@ -28,7 +28,7 @@ const routes: RouteRecordRaw[] = [
     meta: { title: '影视库' }
   },
   {
-    path: '/record',
+    path: '/Record',
     name: 'Record',
     component: Record,
     meta: { title: '记录' }
@@ -40,14 +40,14 @@ const routes: RouteRecordRaw[] = [
     meta: { title: '历史' }
   },
   {
-    path: '/detail/:id',
+    path: '/Detail/:id',
     name: 'Detail',
     component: Detail,
     props: true,
     meta: { title: '详情' }
   },
   {
-    path: '/import',
+    path: '/Import',
     name: 'Import',
     component: Import,
     meta: { title: '数据导入导出' }

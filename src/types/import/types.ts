@@ -43,7 +43,6 @@ export interface ImportOptions {
   importComments?: boolean;
   importRatings?: boolean;
   importTags?: boolean;
-  preserveFields?: string[]; // 保留的字段名
 }
 
 // 导出格式

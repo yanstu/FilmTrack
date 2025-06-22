@@ -101,8 +101,6 @@ const handleSettingsSave = (settings: any) => {
   settingsVisible.value = false;
 };
 
-
-
 // 处理更新
 const handleUpdate = async () => {
   try {

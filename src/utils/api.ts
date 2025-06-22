@@ -18,8 +18,9 @@ import type {
   Statistics,
 } from '../types';
 import { ref } from 'vue';
-import { generateSearchKeywords, cleanTitle } from './titleUtils';
-import StorageService, { StorageKey } from './storage';
+import { generateSearchKeywords, generateSearchVariants, cleanTitle } from './titleUtils';
+import { generateTMDbSearchStrategies, calculateRelevanceScore, generateEnglishKeywords } from './tmdbSearchEnhancer';
+import StorageService from './storage';
 import { databaseAPI } from '../services/database-api';
 
 // 类型别名
@@ -158,64 +159,146 @@ export const tmdbAPI = {
     });
   },
 
-  // 搜索电影
+  // 搜索电影（增强版）
   async searchMovies(
     query: string,
     page = 1
   ): Promise<ApiResponse<TMDbResponse<TMDbMovie>>> {
     if (!query) return { success: false, error: '搜索关键词不能为空' };
 
-    // 生成搜索关键词
-    const searchKeyword = generateSearchKeywords(query);
+    // 使用增强的搜索变体生成
+    const uniqueStrategies = generateSearchVariants(query);
 
-    // 生成缓存键
-    const cacheKey = `search_movies_${searchKeyword}_${page}`;
+    for (const searchKeyword of uniqueStrategies) {
+      try {
+        const cacheKey = `search_movies_${searchKeyword}_${page}`;
+        const result = await this._request(
+          '/search/movie',
+          {
+            query: searchKeyword,
+            page,
+            include_adult: true,
+            language: 'zh-CN'
+          },
+          cacheKey
+        );
 
-    return this._request(
-      '/search/movie',
-      { query: searchKeyword, page, include_adult: false },
-      cacheKey
-    );
+        if (result.success && result.data?.results && result.data.results.length > 0) {
+          return result;
+        }
+      } catch (error) {
+        continue;
+      }
+    }
+
+    return {
+      success: true,
+      data: { page: 1, results: [], total_pages: 0, total_results: 0 }
+    };
   },
 
-  // 搜索电视剧
+  // 搜索电视剧（增强版）
   async searchTVShows(
     query: string,
     page = 1
   ): Promise<ApiResponse<TMDbResponse<TMDbMovie>>> {
     if (!query) return { success: false, error: '搜索关键词不能为空' };
 
-    // 生成搜索关键词
-    const searchKeyword = generateSearchKeywords(query);
+    // 使用增强的搜索变体生成
+    const uniqueStrategies = generateSearchVariants(query);
 
-    // 生成缓存键
-    const cacheKey = `search_tv_${searchKeyword}_${page}`;
+    for (const searchKeyword of uniqueStrategies) {
+      try {
+        const cacheKey = `search_tv_${searchKeyword}_${page}`;
+        const result = await this._request(
+          '/search/tv',
+          {
+            query: searchKeyword,
+            page,
+            include_adult: true,
+            language: 'zh-CN'
+          },
+          cacheKey
+        );
 
-    return this._request(
-      '/search/tv',
-      { query: searchKeyword, page, include_adult: false },
-      cacheKey
-    );
+        if (result.success && result.data?.results && result.data.results.length > 0) {
+          return result;
+        }
+      } catch (error) {
+        continue;
+      }
+    }
+
+    return {
+      success: true,
+      data: { page: 1, results: [], total_pages: 0, total_results: 0 }
+    };
   },
 
-  // 多类型搜索
+  // 多类型搜索（增强版）
   async searchMulti(
     query: string,
     page = 1
   ): Promise<ApiResponse<TMDbResponse<TMDbMovie>>> {
     if (!query) return { success: false, error: '搜索关键词不能为空' };
 
-    // 生成搜索关键词
-    const searchKeyword = generateSearchKeywords(query);
+    // 使用增强的 TMDb 搜索策略
+    const searchStrategies = generateTMDbSearchStrategies(query);
 
-    // 生成缓存键
-    const cacheKey = `search_multi_${searchKeyword}_${page}`;
+    // 添加英文关键词策略（如果是中文标题）
+    const englishKeywords = generateEnglishKeywords(query);
+    if (englishKeywords.length > 0) {
+      searchStrategies.push(...englishKeywords);
+    }
 
-    return this._request(
-      '/search/multi',
-      { query: searchKeyword, page, include_adult: false },
-      cacheKey
-    );
+    let bestResult: any = null;
+    let bestScore = 0;
+
+    for (const searchKeyword of searchStrategies) {
+      try {
+        const cacheKey = `search_multi_${searchKeyword}_${page}`;
+
+        const result = await this._request(
+          '/search/multi',
+          {
+            query: searchKeyword,
+            page,
+            include_adult: false,
+            language: 'zh-CN'
+          },
+          cacheKey
+        );
+
+        if (result.success && result.data?.results && result.data.results.length > 0) {
+          const topResult = result.data.results[0];
+          const relevanceScore = calculateRelevanceScore(query, topResult);
+
+          if (relevanceScore > 0.8) {
+            return result;
+          }
+
+          if (relevanceScore > bestScore) {
+            bestScore = relevanceScore;
+            bestResult = result;
+          }
+        }
+      } catch (error) {
+        continue;
+      }
+    }
+
+    if (bestResult && bestScore > 0.3) {
+      return bestResult;
+    }
+    return {
+      success: true,
+      data: {
+        page: 1,
+        results: [],
+        total_pages: 0,
+        total_results: 0
+      }
+    };
   },
 
   // 获取电影详情
@@ -274,13 +357,7 @@ export const tmdbAPI = {
     return `${APP_CONFIG.tmdb.imageBaseUrl}/w500${path}`;
   },
 
-  // 获取缓存的图片URL
-  async getCachedImageURL(path: string): Promise<string> {
-    if (!path) return '';
-    const imageUrl = this.getImageURL(path);
-    // 这里可以添加图片缓存逻辑
-    return imageUrl;
-  },
+
 
   // 获取类型列表
   async getGenres(mediaType: 'movie' | 'tv'): Promise<ApiResponse<any>> {
@@ -335,6 +412,30 @@ export const tmdbAPI = {
       }
     });
   },
+
+  // 缓存健康检查
+  performCacheHealthCheck(): void {
+    try {
+      const stats = apiCache.getStats();
+      const cacheSize = parseInt(stats.size.replace('KB', '')) * 1024;
+
+      if (cacheSize > 3 * 1024 * 1024) { // 超过3MB
+        apiCache.cleanupExpiredCache();
+      }
+    } catch (error) {
+      // 静默处理错误
+    }
+  },
+
+  // 获取缓存统计
+  getCacheStats(): any {
+    return apiCache.getStats();
+  },
+
+  // 清理缓存
+  clearCache(): void {
+    apiCache.clear();
+  }
 };
 
 // ==================== 响应包装器 ====================
@@ -459,6 +560,22 @@ interface CacheItem<T> {
 class ApiCache {
   private cache: Record<string, CacheItem<any>> = {};
   private expirationTime: number = 24 * 60 * 60 * 1000; // 默认缓存24小时
+  private maxCacheSize: number = 200; // 每个类型最大缓存项数量
+  private maxStorageSize: number = 2 * 1024 * 1024; // 每个类型最大存储大小 2MB
+
+  // 缓存类型映射
+  private cacheTypes = {
+    'movie_details_': 'movie-details',
+    'tv_details_': 'tv-details',
+    'search_multi_': 'search-multi',
+    'search_movies_': 'search-movies',
+    'search_tv_': 'search-tv',
+    'backdrops_movie_': 'backdrops-movie',
+    'backdrops_tv_': 'backdrops-tv',
+    'popular_movies_': 'popular-movies',
+    'popular_tv_': 'popular-tv',
+    'genres_': 'genres'
+  };
 
   constructor(expirationTimeInHours?: number) {
     if (expirationTimeInHours) {
@@ -467,13 +584,39 @@ class ApiCache {
 
     // 从存储加载缓存
     this.loadFromStorage();
+
+    // 启动时清理过期缓存
+    this.cleanupExpiredCache();
+  }
+
+  // 获取缓存类型
+  private getCacheType(key: string): string {
+    for (const [prefix, type] of Object.entries(this.cacheTypes)) {
+      if (key.startsWith(prefix)) {
+        return type;
+      }
+    }
+    return 'other';
   }
 
   // 获取缓存项
   public get<T>(key: string): T | null {
     const item = this.cache[key];
 
-    if (!item) return null;
+    if (!item) {
+      // 尝试从分离存储中加载
+      this.loadSpecificCache(key);
+      const reloadedItem = this.cache[key];
+      if (!reloadedItem) return null;
+
+      // 检查是否过期
+      if (Date.now() - reloadedItem.timestamp > this.expirationTime) {
+        this.delete(key);
+        return null;
+      }
+
+      return reloadedItem.data as T;
+    }
 
     // 检查是否过期
     if (Date.now() - item.timestamp > this.expirationTime) {
@@ -486,59 +629,231 @@ class ApiCache {
 
   // 设置缓存项
   public set<T>(key: string, data: T): void {
+    const cacheType = this.getCacheType(key);
+
+    // 检查该类型的缓存大小限制
+    const typeKeys = Object.keys(this.cache).filter(k => this.getCacheType(k) === cacheType);
+    if (typeKeys.length >= this.maxCacheSize) {
+      this.cleanupOldestCacheByType(cacheType);
+    }
+
     this.cache[key] = {
       data,
       timestamp: Date.now(),
     };
 
-    // 保存到存储
-    this.saveToStorage();
+    // 保存到分离存储
+    this.saveSpecificCache(key);
   }
 
   // 删除缓存项
   public delete(key: string): void {
     delete this.cache[key];
-    this.saveToStorage();
+    this.deleteSpecificCache(key);
   }
 
-  // 清空缓存
-  public clear(): void {
-    this.cache = {};
-    // 使用set而不是remove，确保格式一致
-    StorageService.set(StorageKey.TMDB_CACHE, {});
-  }
-
-  // 保存到存储
-  private saveToStorage(): void {
+  // 加载特定缓存项
+  private loadSpecificCache(key: string): void {
     try {
-      StorageService.set(StorageKey.TMDB_CACHE, this.cache);
+      const cacheType = this.getCacheType(key);
+      const storageKey = `filmtrack-tmdb-${cacheType}`;
+      const typeCache = StorageService.get<Record<string, CacheItem<any>>>(storageKey as any, {});
+
+      if (typeCache && typeCache[key]) {
+        this.cache[key] = typeCache[key];
+      }
     } catch (error) {
-      console.error('保存缓存到存储失败:', error);
+      // 静默处理加载错误
     }
   }
 
-  // 从存储加载
+  // 保存特定缓存项
+  private saveSpecificCache(key: string): void {
+    try {
+      const cacheType = this.getCacheType(key);
+      const storageKey = `filmtrack-tmdb-${cacheType}`;
+
+      // 获取该类型的所有缓存
+      const typeCache = StorageService.get<Record<string, CacheItem<any>>>(storageKey as any, {});
+      typeCache[key] = this.cache[key];
+
+      // 检查大小限制
+      const cacheString = JSON.stringify(typeCache);
+      const cacheSize = new Blob([cacheString]).size;
+
+      if (cacheSize > this.maxStorageSize) {
+        this.cleanupTypeCacheBySize(cacheType, typeCache, storageKey);
+        return;
+      }
+
+      StorageService.set(storageKey as any, typeCache);
+    } catch (error: any) {
+      if (error.name === 'QuotaExceededError') {
+        const cacheType = this.getCacheType(key);
+        this.emergencyCleanupType(cacheType);
+      }
+    }
+  }
+
+  // 删除特定缓存项
+  private deleteSpecificCache(key: string): void {
+    try {
+      const cacheType = this.getCacheType(key);
+      const storageKey = `filmtrack-tmdb-${cacheType}`;
+      const typeCache = StorageService.get<Record<string, CacheItem<any>>>(storageKey as any, {});
+
+      if (typeCache && typeCache[key]) {
+        delete typeCache[key];
+        StorageService.set(storageKey as any, typeCache);
+      }
+    } catch (error) {
+      // 静默处理删除错误
+    }
+  }
+
+
+
+  // 保存到存储（已废弃，使用分离式存储）
+  private saveToStorage(): void {
+    // 分离式存储不需要统一保存
+  }
+
+  // 从存储加载（分离式加载）
   private loadFromStorage(): void {
     try {
-      const cached = StorageService.get<Record<string, CacheItem<any>>>(
-        StorageKey.TMDB_CACHE,
-        {}
-      );
-      if (cached) {
-        this.cache = cached;
-      } else {
-        this.cache = {};
-      }
-    } catch (error) {
-      console.error('从存储加载缓存失败:', error);
+      // 分离式存储按需加载，这里只初始化空缓存
       this.cache = {};
-      // 重置缓存
-      try {
-        StorageService.set(StorageKey.TMDB_CACHE, {});
-      } catch (e) {
-        console.error('重置TMDB缓存失败:', e);
-      }
+    } catch (error) {
+      this.cache = {};
     }
+  }
+
+  // 清理过期缓存
+  public cleanupExpiredCache(): void {
+    const now = Date.now();
+    let cleanedCount = 0;
+
+    Object.keys(this.cache).forEach(key => {
+      const item = this.cache[key];
+      if (now - item.timestamp > this.expirationTime) {
+        delete this.cache[key];
+        cleanedCount++;
+      }
+    });
+
+    if (cleanedCount > 0) {
+      this.saveToStorage();
+    }
+  }
+
+
+
+  // 按类型清理最旧的缓存项
+  private cleanupOldestCacheByType(cacheType: string): void {
+    const typeKeys = Object.keys(this.cache).filter(k => this.getCacheType(k) === cacheType);
+    const entries = typeKeys.map(key => [key, this.cache[key]] as [string, CacheItem<any>]);
+
+    // 按时间戳排序，删除最旧的 20%
+    entries.sort((a, b) => a[1].timestamp - b[1].timestamp);
+    const deleteCount = Math.floor(entries.length * 0.2);
+
+    for (let i = 0; i < deleteCount; i++) {
+      delete this.cache[entries[i][0]];
+    }
+
+    // 静默清理
+  }
+
+  // 按大小清理类型缓存
+  private cleanupTypeCacheBySize(_cacheType: string, typeCache: Record<string, CacheItem<any>>, storageKey: string): void {
+    const entries = Object.entries(typeCache);
+
+    // 计算每个缓存项的大小
+    const entriesWithSize = entries.map(([key, value]) => ({
+      key,
+      value,
+      size: JSON.stringify(value).length
+    }));
+
+    // 按大小排序，删除最大的项目
+    entriesWithSize.sort((a, b) => b.size - a.size);
+
+    let deletedSize = 0;
+    let deletedCount = 0;
+    const targetSize = this.maxStorageSize * 0.7; // 清理到70%
+
+    for (const entry of entriesWithSize) {
+      delete typeCache[entry.key];
+      delete this.cache[entry.key];
+      deletedSize += entry.size;
+      deletedCount++;
+
+      const remainingSize = JSON.stringify(typeCache).length;
+      if (remainingSize < targetSize) break;
+    }
+
+    // 静默清理
+    StorageService.set(storageKey as any, typeCache);
+  }
+
+  // 紧急清理特定类型
+  private emergencyCleanupType(cacheType: string): void {
+    const storageKey = `filmtrack-tmdb-${cacheType}`;
+    const typeKeys = Object.keys(this.cache).filter(k => this.getCacheType(k) === cacheType);
+    const now = Date.now();
+    const recentThreshold = 60 * 60 * 1000; // 1小时
+
+    const newTypeCache: Record<string, CacheItem<any>> = {};
+
+    typeKeys.forEach(key => {
+      const item = this.cache[key];
+      if (now - item.timestamp < recentThreshold) {
+        newTypeCache[key] = item;
+      } else {
+        delete this.cache[key];
+      }
+    });
+
+    try {
+      StorageService.set(storageKey as any, newTypeCache);
+    } catch (error) {
+      StorageService.remove(storageKey as any);
+      typeKeys.forEach(key => delete this.cache[key]);
+    }
+  }
+
+
+
+  // 清空所有缓存
+  public clear(): void {
+    this.cache = {};
+    try {
+      // 清空所有分离式缓存
+      Object.values(this.cacheTypes).forEach(type => {
+        const storageKey = `filmtrack-tmdb-${type}`;
+        StorageService.remove(storageKey as any);
+      });
+    } catch (error) {
+      // 静默处理错误
+    }
+  }
+
+  // 获取缓存统计信息
+  public getStats(): { count: number; size: string; oldestItem: string } {
+    const count = Object.keys(this.cache).length;
+    const cacheString = JSON.stringify(this.cache);
+    const size = `${(new Blob([cacheString]).size / 1024).toFixed(2)}KB`;
+
+    let oldestTimestamp = Date.now();
+    Object.values(this.cache).forEach(item => {
+      if (item.timestamp < oldestTimestamp) {
+        oldestTimestamp = item.timestamp;
+      }
+    });
+
+    const oldestItem = new Date(oldestTimestamp).toLocaleString();
+
+    return { count, size, oldestItem };
   }
 }
 

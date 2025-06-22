@@ -89,7 +89,7 @@ export class TMDbService {
     
     return this._request<TMDbSearchResponse>(
       '/search/movie',
-      { query: searchKeyword, page, include_adult: false },
+      { query: searchKeyword, page, include_adult: true },
       cacheKey
     );
   }
@@ -111,7 +111,7 @@ export class TMDbService {
     
     return this._request<TMDbSearchResponse>(
       '/search/tv',
-      { query: searchKeyword, page, include_adult: false },
+      { query: searchKeyword, page, include_adult: true },
       cacheKey
     );
   }
@@ -133,7 +133,7 @@ export class TMDbService {
     
     return this._request<TMDbSearchResponse>(
       '/search/multi',
-      { query: searchKeyword, page, include_adult: false },
+      { query: searchKeyword, page, include_adult: true },
       cacheKey
     );
   }

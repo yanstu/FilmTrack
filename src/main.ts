@@ -13,8 +13,14 @@ import { registerPlugins, initializePlugins } from './plugins';
 // 导入浏览器控制工具
 import { initBrowserControl } from './utils/browser';
 
+// 导入缓存管理
+import { tmdbAPI } from './utils/api';
+
 // 初始化浏览器控制
 initBrowserControl();
+
+// 执行缓存健康检查
+tmdbAPI.performCacheHealthCheck();
 
 // 初始化插件系统
 initializePlugins();
