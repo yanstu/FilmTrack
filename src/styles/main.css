@@ -91,7 +91,7 @@ input, textarea, [contenteditable="true"] {
 /* 禁用右键菜单 */
   body {
   -webkit-context-menu: none;
-  font-family: 'PingFang SC', 'PingFang SC', 'Microsoft YaHei', -apple-system, sans-serif;
+  font-family: 'PingFang SC', 'Microsoft YaHei', -apple-system, sans-serif;
   font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

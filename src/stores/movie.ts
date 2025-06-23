@@ -200,22 +200,34 @@ export const useMovieStore = defineStore('movie', () => {
    * 添加影视作品
    */
   const addMovie = async (form: AddMovieForm): Promise<ApiResponse<string>> => {
-    return withApiResponse(async () => {
+    try {
       setLoading(true);
-      
+
       // 获取TMDb详细信息
       let tmdbData;
-      if (form.type === 'movie') {
-        tmdbData = await tmdbAPI.getMovieDetails(form.tmdb_id);
-      } else {
-        tmdbData = await tmdbAPI.getTVDetails(form.tmdb_id);
+      let tmdbResponse;
+      try {
+        if (form.type === 'movie') {
+          tmdbResponse = await tmdbAPI.getMovieDetails(form.tmdb_id);
+        } else {
+          tmdbResponse = await tmdbAPI.getTVDetails(form.tmdb_id);
+        }
+
+        if (!tmdbResponse.success || !tmdbResponse.data) {
+          throw new Error(tmdbResponse.error || 'TMDb API 调用失败');
+        }
+
+        tmdbData = tmdbResponse.data;
+      } catch (error) {
+        console.error('[MovieStore] TMDb数据获取失败:', error);
+        throw new Error('获取影视作品详细信息失败: ' + (error instanceof Error ? error.message : error));
       }
-      
+
       // 合并表单数据和TMDb数据
       const movieData = {
         title: tmdbData.title || tmdbData.name || '',
         original_title: tmdbData.original_title || tmdbData.original_name || '',
-        year: tmdbData.release_date ? new Date(tmdbData.release_date).getFullYear() : 
+        year: tmdbData.release_date ? new Date(tmdbData.release_date).getFullYear() :
               (tmdbData.first_air_date ? new Date(tmdbData.first_air_date).getFullYear() : undefined),
         type: form.type,
         tmdb_id: form.tmdb_id,
@@ -232,24 +244,31 @@ export const useMovieStore = defineStore('movie', () => {
         total_seasons: tmdbData.number_of_seasons,
         air_status: tmdbData.status
       };
-      
+
       // 添加到数据库
       const response = await databaseAPI.addMovie(movieData);
       if (!response.success) {
+        console.error('[MovieStore] 数据库保存失败:', response.error);
         throw new Error(response.error || '添加影视作品失败');
       }
-      
+
       // 刷新列表
       await fetchMovies();
-      
+
       setLoading(false);
-      return response.data?.id || '';
-    }, {
-      onError: (err) => {
-        error.value = err;
-        console.error('添加电影失败:', err);
-      }
-    });
+      return {
+        success: true,
+        data: response.data?.id || ''
+      };
+    } catch (err) {
+      setLoading(false);
+      const errorMessage = err instanceof Error ? err.message : '添加影视作品失败';
+      console.error('[MovieStore] 添加电影失败:', errorMessage);
+      return {
+        success: false,
+        error: errorMessage
+      };
+    }
   };
   
   /**

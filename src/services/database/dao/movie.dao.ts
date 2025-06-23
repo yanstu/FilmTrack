@@ -133,9 +133,6 @@ export class MovieDAO {
         timestamp
       ]
 
-      console.log('执行SQL:', query)
-      console.log('参数:', params)
-      
       await db.execute(query, params)
       
       const newMovie: Movie = {
@@ -182,13 +179,6 @@ export class MovieDAO {
       const db = await DatabaseConnection.getInstance()
       const timestamp = await DatabaseUtils.getCurrentTimestamp()
       
-      console.log('数据库更新电影 - 输入数据:', {
-        id: movie.id,
-        title: movie.title,
-        current_episode: movie.current_episode,
-        status: movie.status
-      });
-      
       const query = `
         UPDATE movies SET 
           title = $1, overview = $2, poster_path = $3, backdrop_path = $4, 
@@ -224,9 +214,7 @@ export class MovieDAO {
         movie.id
       ]
       
-      console.log('数据库更新电影 - SQL参数:', params);
       await db.execute(query, params)
-      console.log('数据库更新电影 - 执行成功');
       
       return { 
         success: true, 

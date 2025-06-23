@@ -4,17 +4,13 @@
  */
 
 /* 使用在线苹方字体服务 */
-@import url('https://fonts.font.im/css?family=PingFang+SC:400,500,700&display=swap');
+@import url('https://gitee.com/faithsx/faithsx/raw/master/PingFangSC-Regular.woff2');
 
 /* 全局应用苹方字体 */
-html, body {
-  font-family: 'PingFang SC', 'PingFang SC', 'Microsoft YaHei', -apple-system, sans-serif;
+html,
+body,
+* {
+  font-family: 'PingFang SC', 'Microsoft YaHei', -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
-
-/* 针对标题的字体设置 */
-h1, h2, h3, h4, h5, h6 {
-  font-family: 'PingFang SC', 'PingFang SC', 'Microsoft YaHei', -apple-system, sans-serif;
-  font-weight: 500;
-} 

@@ -108,7 +108,6 @@ export class CacheManager {
 
       if (deletedCount > 0) {
         StorageService.set(StorageKey.TMDB_CACHE, cache);
-        console.log(`[缓存管理] 清理了 ${deletedCount} 个"${type}"类型的缓存项`);
       }
 
       return deletedCount;
@@ -139,7 +138,6 @@ export class CacheManager {
 
       if (deletedCount > 0) {
         StorageService.set(StorageKey.TMDB_CACHE, cache);
-        console.log(`[缓存管理] 清理了 ${deletedCount} 个过期缓存项（超过${maxAgeHours}小时）`);
       }
 
       return deletedCount;
@@ -155,7 +153,6 @@ export class CacheManager {
   static clearAllCache(): void {
     try {
       StorageService.remove(StorageKey.TMDB_CACHE);
-      console.log('[缓存管理] 已清空所有缓存');
     } catch (error) {
       console.error('清空缓存失败:', error);
     }
@@ -193,7 +190,6 @@ export class CacheManager {
       });
 
       StorageService.set(StorageKey.TMDB_CACHE, optimizedCache);
-      console.log(`[缓存管理] 缓存优化完成，删除了 ${deletedCount} 个项目`);
       
       return deletedCount;
     } catch (error) {
@@ -219,16 +215,8 @@ export class CacheManager {
   static printCacheReport(): void {
     const stats = this.getCacheStats();
     
-    console.group('📊 TMDb 缓存统计报告');
-    console.log(`总大小: ${this.formatSize(stats.totalSize)}`);
-    console.log(`项目数量: ${stats.itemCount}`);
-    console.log(`最旧项目: ${stats.oldestItem.toLocaleString()}`);
-    console.log(`最新项目: ${stats.newestItem.toLocaleString()}`);
-    
-    console.group('📋 按类型分布:');
     Object.entries(stats.sizeByType).forEach(([type, size]) => {
       const count = stats.itemsByType[type] || 0;
-      console.log(`${type}: ${this.formatSize(size)} (${count} 项)`);
     });
     console.groupEnd();
     

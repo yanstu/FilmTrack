@@ -132,7 +132,6 @@ export class DatabaseSchema {
         }
       }
       
-      console.log('数据库表结构初始化完成')
     } catch (error) {
       console.error('数据库表结构初始化失败:', error)
       throw error

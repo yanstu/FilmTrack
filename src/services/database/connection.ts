@@ -22,9 +22,7 @@ export class DatabaseConnection {
       
       // 使用配置中的数据库名称
       const dbName = APP_CONFIG.database.name
-      console.log(`尝试连接数据库: sqlite:${dbName}`)
       const db = await Database.default.load(`sqlite:${dbName}`)
-      console.log(`数据库连接成功: sqlite:${dbName}`)
       
       return db
     } catch (error) {

@@ -100,9 +100,7 @@ export function useSearchLogic(
           // 动态导入并缓存图片
           const { prefetchImages } = await import('../../../utils/imageCache');
           await prefetchImages([imageUrl]);
-          console.log('图片已预缓存:', imageUrl);
         } catch (error) {
-          console.warn('预缓存图片失败:', error);
         }
       }
 

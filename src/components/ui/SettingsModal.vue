@@ -173,7 +173,6 @@ const clearImageCache = () => {
       try {
         const response = await invoke<ApiResponse<string>>('clear_image_cache');
         if (response.success) {
-          console.log('图片缓存已清空');
           await updateCacheInfo();
         } else {
           throw new Error(response.error || '清空失败');
@@ -200,7 +199,6 @@ const clearAllData = () => {
       try {
         const response = await invoke<ApiResponse<string>>('clear_all_data');
         if (response.success) {
-          console.log('所有数据已清空');
           await updateCacheInfo();
           // 可能需要重新加载页面或重置应用状态
           window.location.reload();
