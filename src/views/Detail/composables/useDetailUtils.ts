@@ -22,7 +22,7 @@ export function useDetailUtils(detailState: Ref<DetailState>) {
   // 计算观看进度
   const watchProgress = computed<WatchProgress>(() => {
     const movie = detailState.value.movie;
-    if (!movie?.current_episode || !movie?.total_episodes) {
+    if (!movie || movie.type !== 'tv') {
       return {
         current: 0,
         total: 0,
@@ -31,10 +31,34 @@ export function useDetailUtils(detailState: Ref<DetailState>) {
       };
     }
 
-    const percentage = Math.round((movie.current_episode / movie.total_episodes) * 100);
+    // 计算累计观看集数
+    let totalWatchedEpisodes = 0;
+    const totalEpisodes = movie.total_episodes || 0;
+
+    if (movie.seasons_data && movie.current_season) {
+      // 使用seasons_data计算累计集数
+      const seasons = Object.values(movie.seasons_data)
+        .sort((a, b) => a.season_number - b.season_number);
+
+      for (const season of seasons) {
+        if (season.season_number < movie.current_season) {
+          // 前面的季全部看完
+          totalWatchedEpisodes += season.episode_count;
+        } else if (season.season_number === movie.current_season) {
+          // 当前季看了部分
+          totalWatchedEpisodes += movie.current_episode || 0;
+          break;
+        }
+      }
+    } else {
+      // 回退到传统方式
+      totalWatchedEpisodes = movie.current_episode || 0;
+    }
+
+    const percentage = totalEpisodes > 0 ? Math.round((totalWatchedEpisodes / totalEpisodes) * 100) : 0;
     return {
-      current: movie.current_episode,
-      total: movie.total_episodes,
+      current: totalWatchedEpisodes,
+      total: totalEpisodes,
       percentage,
       isCompleted: percentage >= 100
     };

@@ -3,21 +3,16 @@
  */
 import type { App } from 'vue';
 import {
-  create,
   createDiscreteApi
 } from 'naive-ui';
 
-// 创建Naive UI实例
-const naive = create({
-  components: []
-});
-
 /**
  * 注册Naive UI插件
- * @param app Vue应用实例
+ * @param _app Vue应用实例
  */
-export function registerNaiveUI(app: App): void {
-  app.use(naive);
+export function registerNaiveUI(_app: App): void {
+  // Naive UI 2.0+ 不需要手动注册，组件可以直接使用
+  // 这里保留函数以保持兼容性
 }
 
 /**

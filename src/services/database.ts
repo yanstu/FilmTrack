@@ -9,7 +9,8 @@ import { invoke } from '@tauri-apps/api/core'
 import {
   Movie,
   Statistics,
-  ApiResponse
+  ApiResponse,
+  SeasonsData
 } from '../types'
 import { APP_CONFIG } from '../../config/app.config'
 
@@ -76,6 +77,7 @@ export class DatabaseService {
           total_episodes INTEGER,
           current_season INTEGER DEFAULT 1,
           total_seasons INTEGER,
+          seasons_data TEXT,
           air_status TEXT,
           watch_source TEXT,
           watched_date TEXT,
@@ -112,6 +114,7 @@ export class DatabaseService {
         'ALTER TABLE movies ADD COLUMN total_episodes INTEGER',
         'ALTER TABLE movies ADD COLUMN current_season INTEGER',
         'ALTER TABLE movies ADD COLUMN total_seasons INTEGER',
+        'ALTER TABLE movies ADD COLUMN seasons_data TEXT',
         'ALTER TABLE movies ADD COLUMN air_status TEXT',
         'ALTER TABLE movies ADD COLUMN watch_source TEXT',
         'ALTER TABLE movies ADD COLUMN watched_date TEXT',
@@ -278,7 +281,8 @@ export class MovieDAO {
       const movies: Movie[] = result.map((row: any) => ({
         ...row,
         genres: DatabaseUtils.parseJsonField<string[]>(row.genres),
-        tags: DatabaseUtils.parseJsonField<string[]>(row.tags)
+        tags: DatabaseUtils.parseJsonField<string[]>(row.tags),
+        seasons_data: DatabaseUtils.parseJsonField<SeasonsData>(row.seasons_data)
       }))
       
       return { success: true, data: movies }
@@ -301,6 +305,7 @@ export class MovieDAO {
       const movie: Movie = {
         ...row,
         genres: DatabaseUtils.parseJsonField<string[]>(row.genres),
+        seasons_data: DatabaseUtils.parseJsonField<SeasonsData>(row.seasons_data)
       }
       
       return { success: true, data: movie }
@@ -319,11 +324,11 @@ export class MovieDAO {
       // 使用与数据库表匹配的字段
       const query = `
         INSERT INTO movies (
-          id, title, original_title, year, type, tmdb_id, poster_path, 
+          id, title, original_title, year, type, tmdb_id, poster_path,
           overview, status, personal_rating, tmdb_rating, notes, watch_source,
-          current_episode, current_season, air_status, total_episodes, total_seasons,
+          current_episode, current_season, air_status, total_episodes, total_seasons, seasons_data,
           date_added, date_updated, created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
       `
       
       const params = [
@@ -345,6 +350,7 @@ export class MovieDAO {
         (movie as any).air_status || null,
         (movie as any).total_episodes || null,
         (movie as any).total_seasons || null,
+        (movie as any).seasons_data ? JSON.stringify((movie as any).seasons_data) : null,
         (movie as any).date_added || timestamp,
         (movie as any).date_updated || timestamp,
         (movie as any).created_at || timestamp,
@@ -391,14 +397,14 @@ export class MovieDAO {
 
       
       const query = `
-        UPDATE movies SET 
-          title = $1, overview = $2, poster_path = $3, backdrop_path = $4, 
+        UPDATE movies SET
+          title = $1, overview = $2, poster_path = $3, backdrop_path = $4,
           year = $5, tmdb_rating = $6, runtime = $7, genres = $8,
-          status = $9, personal_rating = $10, watch_count = $11, 
+          status = $9, personal_rating = $10, watch_count = $11,
           current_episode = $12, current_season = $13, total_episodes = $14, total_seasons = $15,
-          air_status = $16, notes = $17, watch_source = $18,
-          date_updated = $19, updated_at = $20
-        WHERE id = $21
+          seasons_data = $16, air_status = $17, notes = $18, watch_source = $19,
+          date_updated = $20, updated_at = $21
+        WHERE id = $22
       `
       
       const params = [
@@ -417,6 +423,7 @@ export class MovieDAO {
         (movie as any).current_season !== undefined ? (movie as any).current_season : 1,
         (movie as any).total_episodes || null,
         (movie as any).total_seasons || null,
+        (movie as any).seasons_data ? JSON.stringify((movie as any).seasons_data) : null,
         (movie as any).air_status || null,
         (movie as any).notes || null,
         (movie as any).watch_source || null,

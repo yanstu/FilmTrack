@@ -109,6 +109,20 @@ export interface TMDbSeason {
   air_date: string;
 }
 
+/** 季集数据 */
+export interface SeasonData {
+  season_number: number;
+  name: string;
+  episode_count: number;
+  air_date?: string;
+  poster_path?: string | null;
+}
+
+/** 季集数据集合 */
+export interface SeasonsData {
+  [seasonNumber: string]: SeasonData;
+}
+
 export interface TMDbNetwork {
   id: number;
   name: string;
@@ -147,6 +161,7 @@ export interface Movie extends BaseEntity {
   total_seasons?: number | null; // 总季数
   current_episode?: number; // 当前观看到的集数
   current_season?: number; // 当前观看到的季数
+  seasons_data?: SeasonsData | null; // 每季的详细信息
   air_status?: 'airing' | 'ended' | 'cancelled' | 'pilot' | 'planned'; // 播出状态
   // 观看相关字段
   status: 'watching' | 'completed' | 'planned' | 'paused' | 'dropped';
@@ -266,6 +281,7 @@ export interface AddMovieForm {
   tags?: string[];
   current_episode?: number;
   current_season?: number;
+  seasons_data?: SeasonsData;
 }
 
 /** 更新影视作品表单 */

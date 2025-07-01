@@ -7,7 +7,7 @@ import { useRouter } from 'vue-router';
 import { useMovieStore } from '../../../stores/movie';
 import { tmdbAPI, debounce } from '../../../utils/api';
 import { getYear } from '../../../utils/constants';
-import type { TMDbMovie } from '../../../types';
+import type { TMDbMovie, SeasonsData, SeasonData } from '../../../types';
 import type { RecordForm, SearchState, DialogState } from '../types';
 
 export function useSearchLogic(
@@ -91,6 +91,24 @@ export function useSearchLogic(
         form.value.total_episodes = detail.number_of_episodes;
         form.value.total_seasons = detail.number_of_seasons;
         form.value.air_status = detail.status;
+
+        // 处理季集数据
+        if (detail.seasons && Array.isArray(detail.seasons)) {
+          const seasonsData: SeasonsData = {};
+          detail.seasons.forEach((season: any) => {
+            // 跳过第0季（通常是特别篇）
+            if (season.season_number > 0) {
+              seasonsData[season.season_number.toString()] = {
+                season_number: season.season_number,
+                name: `第 ${season.season_number} 季`,
+                episode_count: season.episode_count || 0,
+                air_date: season.air_date,
+                poster_path: season.poster_path
+              };
+            }
+          });
+          form.value.seasons_data = seasonsData;
+        }
       }
 
       // 主动缓存图片

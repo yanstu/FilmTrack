@@ -1,11 +1,11 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "FilmTrack",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "identifier": "com.yanstu.filmtrack",
   "build": {
     "beforeDevCommand": "npm run dev",
-    "devUrl": "http://localhost:1420",
+    "devUrl": "http://localhost:5420",
     "beforeBuildCommand": "npx vite build",
     "frontendDist": "../dist"
   },

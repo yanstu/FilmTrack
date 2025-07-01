@@ -42,23 +42,59 @@ export function useDetailActions(
     if (!detailState.value.movie || detailState.value.movie.type !== 'tv') return;
 
     try {
-      const newCurrentEpisode = (detailState.value.movie.current_episode || 0) + 1;
-      const totalEpisodes = detailState.value.movie.total_episodes || 0;
+      const movie = detailState.value.movie;
+      const currentEpisode = movie.current_episode || 0;
+      const currentSeason = movie.current_season || 1;
+
+      // 获取当前季的最大集数
+      let currentSeasonMaxEpisodes = movie.total_episodes || 0;
+      if (movie.seasons_data && movie.seasons_data[currentSeason.toString()]) {
+        currentSeasonMaxEpisodes = movie.seasons_data[currentSeason.toString()].episode_count;
+      }
+
+      // 检查是否已经是当前季的最后一集
+      if (currentEpisode >= currentSeasonMaxEpisodes) {
+        showDialog('info', '提示', '当前季已看完，请切换到下一季或编辑记录');
+        return;
+      }
+
+      const newCurrentEpisode = currentEpisode + 1;
+      const totalEpisodes = movie.total_episodes || 0;
 
       // 确保更新的对象包含所有必要的字段，并且格式与数据库期待的一致
       const updatedMovie: Movie = {
-        ...detailState.value.movie,
+        ...movie,
         current_episode: newCurrentEpisode,
         date_updated: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
 
-      // 如果看到最后一集，将状态改为已看
-      if (newCurrentEpisode >= totalEpisodes && totalEpisodes > 0) {
-        updatedMovie.status = 'completed';
-        showDialog('success', '恭喜完结！', `《${detailState.value.movie.title}》已全部看完，状态已更新为"已看"`);
+      // 计算累计观看集数来判断是否全剧看完
+      let totalWatchedEpisodes = 0;
+      if (movie.seasons_data) {
+        const seasons = Object.values(movie.seasons_data)
+          .sort((a, b) => a.season_number - b.season_number);
+
+        for (const season of seasons) {
+          if (season.season_number < currentSeason) {
+            totalWatchedEpisodes += season.episode_count;
+          } else if (season.season_number === currentSeason) {
+            totalWatchedEpisodes += newCurrentEpisode;
+            break;
+          }
+        }
       } else {
-        showDialog('success', '成功', `已标记第 ${newCurrentEpisode} 集为已观看`);
+        totalWatchedEpisodes = newCurrentEpisode;
+      }
+
+      // 如果看到最后一集，将状态改为已看
+      if (totalWatchedEpisodes >= totalEpisodes && totalEpisodes > 0) {
+        updatedMovie.status = 'completed';
+        showDialog('success', '恭喜完结！', `《${movie.title}》已全部看完，状态已更新为"已看"`);
+      } else if (newCurrentEpisode >= currentSeasonMaxEpisodes) {
+        showDialog('success', '当前季看完！', `第${currentSeason}季已看完，共${currentSeasonMaxEpisodes}集`);
+      } else {
+        showDialog('success', '成功', `已标记第${currentSeason}季第${newCurrentEpisode}集为已观看`);
       }
 
       const result = await movieStore.updateMovie(updatedMovie);

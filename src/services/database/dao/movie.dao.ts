@@ -4,7 +4,7 @@
  * @author yanstu
  */
 
-import type { ApiResponse, Movie } from '../../../types'
+import type { ApiResponse, Movie, SeasonsData } from '../../../types'
 import { DatabaseConnection } from '../connection'
 import { DatabaseUtils } from '../utils'
 
@@ -54,7 +54,8 @@ export class MovieDAO {
       const movies: Movie[] = result.map((row: any) => ({
         ...row,
         genres: DatabaseUtils.parseJsonField<string[]>(row.genres),
-        tags: DatabaseUtils.parseJsonField<string[]>(row.tags)
+        tags: DatabaseUtils.parseJsonField<string[]>(row.tags),
+        seasons_data: DatabaseUtils.parseJsonField<SeasonsData>(row.seasons_data)
       }))
       
       return { success: true, data: movies }
@@ -80,6 +81,7 @@ export class MovieDAO {
       const movie: Movie = {
         ...row,
         genres: DatabaseUtils.parseJsonField<string[]>(row.genres),
+        seasons_data: DatabaseUtils.parseJsonField<SeasonsData>(row.seasons_data)
       }
       
       return { success: true, data: movie }
@@ -101,11 +103,11 @@ export class MovieDAO {
       // 使用与数据库表匹配的字段
       const query = `
         INSERT INTO movies (
-          id, title, original_title, year, type, tmdb_id, poster_path, 
+          id, title, original_title, year, type, tmdb_id, poster_path,
           overview, status, personal_rating, tmdb_rating, notes, watch_source,
-          current_episode, current_season, air_status, total_episodes, total_seasons,
+          current_episode, current_season, air_status, total_episodes, total_seasons, seasons_data,
           date_added, date_updated, created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
       `
       
       const params = [
@@ -127,6 +129,7 @@ export class MovieDAO {
         (movie as any).air_status || null,
         (movie as any).total_episodes || null,
         (movie as any).total_seasons || null,
+        (movie as any).seasons_data ? JSON.stringify((movie as any).seasons_data) : null,
         timestamp,
         timestamp,
         timestamp,

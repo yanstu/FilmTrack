@@ -1,6 +1,6 @@
 [package]
 name = "filmtrack"
-version = "0.2.0"
+version = "0.3.0"
 description = "个人影视管理平台 - 追踪您的观影足迹"
 authors = ["FilmTrack Team"]
 license = "MIT"

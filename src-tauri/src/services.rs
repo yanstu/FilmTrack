@@ -1,13 +1,17 @@
 use std::fs;
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager, Emitter};
-use crate::models::StorageInfo;
+use crate::models::{StorageInfo, FileInfo};
 use crate::utils::{get_size, format_size, generate_cache_filename};
 use serde::{Serialize, Deserialize};
 use chrono::Utc;
 use crate::config::ConfigManager;
 use std::io::Write;
 use futures_util::StreamExt;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+// 全局下载取消标志
+static DOWNLOAD_CANCELLED: AtomicBool = AtomicBool::new(false);
 
 /// 缓存服务
 pub struct CacheService;
@@ -322,8 +326,29 @@ impl UpdateService {
         }
     }
 
+    /// 获取文件信息
+    pub async fn get_file_info(url: &str) -> Result<FileInfo, String> {
+        let client = reqwest::Client::new();
+        let response = client.head(url)
+            .timeout(std::time::Duration::from_secs(10))
+            .send()
+            .await
+            .map_err(|e| format!("获取文件信息失败: {}", e))?;
+
+        if !response.status().is_success() {
+            return Err(format!("获取文件信息失败，状态码: {}", response.status()));
+        }
+
+        let size = response.content_length().unwrap_or(0);
+
+        Ok(FileInfo { size })
+    }
+
     /// 下载更新文件
     pub async fn download_update(app: &AppHandle, url: &str) -> Result<PathBuf, String> {
+        // 重置取消标志
+        DOWNLOAD_CANCELLED.store(false, Ordering::Relaxed);
+
         // 检查是否已下载
         if let Some(existing_file) = Self::is_file_downloaded(app, url)? {
             return Ok(existing_file);
@@ -356,6 +381,13 @@ impl UpdateService {
 
         // 下载文件并发送进度事件
         while let Some(chunk) = stream.next().await {
+            // 检查是否被取消
+            if DOWNLOAD_CANCELLED.load(Ordering::Relaxed) {
+                // 删除部分下载的文件
+                let _ = fs::remove_file(&file_path);
+                return Err("下载已取消".to_string());
+            }
+
             let chunk = chunk.map_err(|e| format!("下载数据失败: {}", e))?;
 
             file.write_all(&chunk)
@@ -407,6 +439,13 @@ impl UpdateService {
             open::that(file_path).map_err(|e| format!("打开安装包失败: {}", e))?;
         }
 
+        Ok(())
+    }
+
+    /// 取消下载
+    pub fn cancel_download() -> Result<(), String> {
+        // 设置取消标志
+        DOWNLOAD_CANCELLED.store(true, Ordering::Relaxed);
         Ok(())
     }
 

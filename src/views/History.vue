@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50">
+  <div class="h-full bg-gradient-to-br from-gray-50 via-white to-blue-50 relative">
     <!-- 顶部区域 -->
     <div class="sticky top-0 z-20 bg-white/70 backdrop-blur-lg border-b border-gray-200/30">
       <div class="container mx-auto px-6 py-6">
@@ -34,9 +34,17 @@
     </div>
 
     <!-- 主要内容区域 -->
-    <div class="container mx-auto px-6 py-8">
+    <div id="scroll-container" class="container mx-auto px-6 py-8 absolute overflow-y-auto inset-0">
+      <!-- 错误状态 -->
+      <div v-if="loadError" class="text-center py-8">
+        <div class="text-red-600 mb-4">{{ loadError }}</div>
+        <button @click="refresh" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+          重新加载
+        </button>
+      </div>
+
       <!-- 时间轴内容 -->
-      <div v-if="groupedMovies.length > 0">
+      <div class="pt-32" v-else-if="groupedMovies.length > 0">
         <div class="timeline-container">
           <div v-for="group in groupedMovies" :key="group.date" class="timeline-group">
             <!-- 日期分组标题 -->
@@ -55,13 +63,9 @@
                 <div class="timeline-content">
                   <div class="movie-card">
                     <div class="movie-poster">
-                      <CachedImage
-                        :src="getImageURL(movie.poster_path)"
-                        :alt="movie.title"
-                        class-name="poster-image"
-                        fallback="/placeholder-poster.svg"
-                      />
-                      <div class="poster-overlay" style="position: absolute;">
+                      <CachedImage :src="getImageURL(movie.poster_path)" :alt="movie.title" class-name="poster-image"
+                        fallback="/placeholder-poster.svg" />
+                      <div class="poster-overlay absolute">
                         <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -120,10 +124,29 @@
             </div>
           </div>
         </div>
+
+        <!-- 加载更多指示器 -->
+        <div v-if="loading" class="text-center py-8">
+          <div class="inline-flex items-center px-4 py-2 text-gray-600">
+            <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-gray-600" xmlns="http://www.w3.org/2000/svg" fill="none"
+              viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+              </path>
+            </svg>
+            加载中...
+          </div>
+        </div>
+
+        <!-- 没有更多数据提示 -->
+        <div v-else-if="!hasMore && movies.length > 0" class="text-center py-8">
+          <p class="text-gray-500">已加载全部记录</p>
+        </div>
       </div>
 
       <!-- 空状态 -->
-      <div v-else class="empty-state">
+      <div v-else-if="isEmpty" class="empty-state">
         <div class="empty-icon">
           <svg class="w-20 h-20 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
@@ -139,6 +162,20 @@
           添加第一部作品
         </router-link>
       </div>
+
+      <!-- 初始加载状态 -->
+      <div v-else class="text-center py-8">
+        <div class="inline-flex items-center px-4 py-2 text-gray-600">
+          <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-gray-600" xmlns="http://www.w3.org/2000/svg" fill="none"
+            viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+            </path>
+          </svg>
+          加载中...
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -147,6 +184,8 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useMovieStore } from '../stores/movie';
+import { useInfiniteScroll } from '../composables/useInfiniteScroll';
+import { databaseAPI } from '../services/database-api';
 import { tmdbAPI } from '../utils/api';
 import { formatRating, getTypeLabel, getStatusLabel, getStatusBadgeClass } from '../utils/constants';
 import { APP_CONFIG } from '../../config/app.config';
@@ -156,15 +195,72 @@ import CachedImage from '../components/ui/CachedImage.vue';
 const router = useRouter();
 const movieStore = useMovieStore();
 
-// 计算属性
-const groupedMovies = computed(() => {
-  const movies = [...movieStore.movies].sort((a, b) =>
-    new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
-  );
+// 统计数据（从store获取，不影响无限滚动）
+const stats = computed(() => {
+  const movies = movieStore.movies;
+  const completed = movies.filter(m => m.status === 'completed');
+  const watching = movies.filter(m => m.status === 'watching');
+  const ratings = movies.filter(m => m.personal_rating && m.personal_rating > 0).map(m => m.personal_rating!);
 
+  return {
+    total: movies.length,
+    completed: completed.length,
+    watching: watching.length,
+    avgRating: ratings.length > 0 ? ratings.reduce((a, b) => a + b, 0) / ratings.length : 0
+  };
+});
+
+// 无限滚动数据加载函数
+const loadMoviesPage = async (page: number, pageSize: number) => {
+  try {
+    const offset = (page - 1) * pageSize;
+
+    // 首先获取总数
+    const totalResult = await databaseAPI.getMovies();
+    if (!totalResult.success || !totalResult.data) {
+      throw new Error(totalResult.error || '获取数据失败');
+    }
+    const totalCount = totalResult.data.length;
+
+    // 使用数据库API获取分页数据（已按updated_at DESC排序）
+    const result = await databaseAPI.getMovies(undefined, pageSize, offset);
+    if (!result.success || !result.data) {
+      throw new Error(result.error || '获取数据失败');
+    }
+
+    const hasMore = offset + pageSize < totalCount;
+
+    return {
+      data: result.data,
+      hasMore,
+      total: totalCount
+    };
+  } catch (error) {
+    console.error('加载历史数据失败:', error);
+    throw error;
+  }
+};
+
+// 使用无限滚动
+const {
+  items: movies,
+  loading,
+  error: loadError,
+  hasMore,
+  isEmpty,
+  refresh
+} = useInfiniteScroll(loadMoviesPage, {
+  pageSize: 20,
+  threshold: 200,
+  immediate: false,
+  container: '#scroll-container'
+});
+
+// 计算分组数据
+const groupedMovies = computed(() => {
   const groups: { [key: string]: Movie[] } = {};
 
-  movies.forEach(movie => {
+  movies.value.forEach(movie => {
     const date = new Date(movie.updated_at).toDateString();
     if (!groups[date]) {
       groups[date] = [];
@@ -178,20 +274,6 @@ const groupedMovies = computed(() => {
       date,
       items: groups[date].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
     }));
-});
-
-const stats = computed(() => {
-  const movies = movieStore.movies;
-  const completed = movies.filter(m => m.status === 'completed');
-  const watching = movies.filter(m => m.status === 'watching');
-  const ratings = movies.filter(m => m.personal_rating && m.personal_rating > 0).map(m => m.personal_rating!);
-
-  return {
-    total: movies.length,
-    completed: completed.length,
-    watching: watching.length,
-    avgRating: ratings.length > 0 ? ratings.reduce((a, b) => a + b, 0) / ratings.length : 0
-  };
 });
 
 // 方法
@@ -251,9 +333,10 @@ const formatGroupDate = (dateString: string) => {
 // 初始化
 onMounted(async () => {
   try {
+    // 只加载统计数据，历史数据通过无限滚动加载
     await movieStore.fetchMovies();
   } catch (error) {
-    console.error('加载数据失败:', error);
+    console.error('加载统计数据失败:', error);
   }
 });
 </script>
@@ -281,7 +364,7 @@ onMounted(async () => {
 
 .timeline-date {
   @apply flex items-center justify-between mb-6 sticky z-10 bg-white/95 backdrop-blur-sm py-3 rounded-lg border border-gray-200/80 shadow-sm;
-  top: 160px;
+  top: 125px;
   padding-left: 1.5rem;
   padding-right: 1.5rem;
 }
@@ -436,7 +519,8 @@ onMounted(async () => {
 @media (max-width: 768px) {
   .timeline-date {
     @apply flex-col items-start space-y-1;
-    top: 180px; /* 移动端可能需要更大的间距 */
+    top: 180px;
+    /* 移动端可能需要更大的间距 */
   }
 
   .movie-card {

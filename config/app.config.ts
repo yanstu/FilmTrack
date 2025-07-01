@@ -20,7 +20,6 @@ export const APP_CONFIG = {
       interval: 200, // 请求间隔，毫秒
       timeout: 10000, // 请求超时，毫秒
       retries: 3, // 重试次数
-      enableTitleMatching: true, // 启用标题匹配
       cacheTimeInHours: 24, // API缓存时长（小时）
     },
   },

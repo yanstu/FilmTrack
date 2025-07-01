@@ -65,7 +65,11 @@ export function useLibraryLogic() {
       if (page === 1) {
         const response = await movieStore.fetchMovies();
         if (response?.success) {
-          libraryState.value.allMovies = movieStore.movies;
+          libraryState.value.allMovies = movieStore.movies.map(movie => ({
+            ...movie,
+            year: movie.year.toString(),
+            user_rating: movie.personal_rating
+          }));
         }
       }
 

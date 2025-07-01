@@ -65,8 +65,9 @@ export function useSelectionLogic(
       }
 
       // 显示成功消息
-      appStore.showMessage({
+      appStore.modalService.open({
         type: 'success',
+        title: '删除成功',
         message: `成功删除 ${selectionState.value.selectedItems.length} 个影视作品`
       });
 
@@ -79,8 +80,9 @@ export function useSelectionLogic(
       // 刷新数据
       refreshData();
     } catch (error) {
-      appStore.showMessage({
+      appStore.modalService.open({
         type: 'error',
+        title: '删除失败',
         message: '删除失败，请重试'
       });
     }

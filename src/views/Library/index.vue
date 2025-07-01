@@ -22,7 +22,6 @@
     <!-- 内容区域 -->
     <div
       id="scroll-container"
-      ref="scrollContainer"
       class="absolute inset-0 pt-0 pb-8 px-8 animate-fade-in-up overflow-y-auto"
       style="animation-delay: 150ms;"
     >
@@ -199,15 +198,12 @@ const loadMovies: LoadFunction<MovieRecord> = async (page: number, pageSize: num
   }
 };
 
-// 滚动容器引用
-const scrollContainer = ref<HTMLElement>();
-
 // 使用无限滚动，指定滚动容器
 const infiniteScroll = useInfiniteScroll(loadMovies, {
   pageSize: 20,
   threshold: 200,
-  immediate: false, // 先不立即加载，等容器准备好
-  container: '#scroll-container' // 使用选择器
+  immediate: false,
+  container: '#scroll-container'
 });
 
 // 更新函数

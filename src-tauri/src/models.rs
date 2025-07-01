@@ -33,4 +33,10 @@ pub struct StorageInfo {
     pub database_size: String,
     pub cache_size_bytes: u64,
     pub database_size_bytes: u64,
-} 
+}
+
+/// 文件信息数据结构
+#[derive(Debug, Serialize, Deserialize)]
+pub struct FileInfo {
+    pub size: u64,
+}

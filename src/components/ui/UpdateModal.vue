@@ -61,7 +61,7 @@
         <div class="text-base font-medium mb-3 text-gray-800">📋 更新内容</div>
         <div
           v-html="parseMarkdown(updateInfo.release_notes)"
-          class="text-sm markdown-content max-h-60 overflow-y-auto min-h-52"
+          class="text-sm markdown-content max-h-80 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100"
         ></div>
       </div>
     </div>
@@ -90,14 +90,17 @@
             v-if="!isDownloading"
             @click="handleUpdate"
             :loading="isChecking"
-            class="bg-blue-500 text-white rounded-lg font-semibold border-none shadow-md shadow-blue-500/20 hover:bg-blue-600 hover:text-white hover:shadow-lg hover:shadow-blue-500/25 transition-all duration-200 transform hover:scale-105"
+            type="primary"
+            size="medium"
+            strong
           >
             {{ isChecking ? '检查中...' : '立即更新' }}
           </NButton>
           <NButton
             v-if="isDownloading"
             @click="handleCancelDownload"
-            class="bg-red-500 text-white rounded-lg font-medium border-none hover:bg-red-600 transition-all duration-200"
+            type="error"
+            size="medium"
           >
             取消下载
           </NButton>
@@ -173,6 +176,30 @@ const handleUpdate = async () => {
       return
     }
 
+    // 先获取文件信息
+    try {
+      const fileInfo = await invoke<{ size: number }>('get_file_info', {
+        url: props.updateInfo.download_url
+      })
+
+      // 初始化下载进度
+      downloadProgress.value = {
+        downloaded: 0,
+        total: fileInfo.size,
+        percentage: 0,
+        speed: '0 B/s'
+      }
+    } catch (infoError) {
+      console.warn('获取文件信息失败，将在下载过程中获取:', infoError)
+      // 如果获取文件信息失败，继续下载，在下载过程中获取
+      downloadProgress.value = {
+        downloaded: 0,
+        total: 0,
+        percentage: 0,
+        speed: '0 B/s'
+      }
+    }
+
     // 开始下载
     isChecking.value = false
     isDownloading.value = true
@@ -219,13 +246,37 @@ const handleIgnoreVersion = async () => {
 }
 
 // 取消下载
-const handleCancelDownload = () => {
-  isDownloading.value = false
-  if (downloadListener) {
-    downloadListener()
-    downloadListener = null
+const handleCancelDownload = async () => {
+  try {
+    // 调用后端取消下载
+    await invoke('cancel_download')
+
+    // 清理前端状态
+    isDownloading.value = false
+    if (downloadListener) {
+      downloadListener()
+      downloadListener = null
+    }
+
+    // 重置下载进度
+    downloadProgress.value = {
+      downloaded: 0,
+      total: 0,
+      percentage: 0,
+      speed: '0 B/s'
+    }
+
+    handleClose()
+  } catch (error) {
+    console.error('取消下载失败:', error)
+    // 即使取消失败，也要清理前端状态
+    isDownloading.value = false
+    if (downloadListener) {
+      downloadListener()
+      downloadListener = null
+    }
+    handleClose()
   }
-  handleClose()
 }
 
 // 格式化字节数
@@ -421,15 +472,18 @@ const parseMarkdown = (markdown?: string): string => {
 .markdown-content :deep(ul) {
   margin: 0.5rem 0;
   padding-left: 1.5rem;
+  list-style-type: disc;
 }
 
 .markdown-content :deep(ol) {
   margin: 0.5rem 0;
   padding-left: 1.5rem;
+  list-style-type: decimal;
 }
 
 .markdown-content :deep(li) {
   margin: 0.25rem 0;
+  display: list-item;
 }
 
 .markdown-content :deep(strong) {
@@ -504,5 +558,39 @@ const parseMarkdown = (markdown?: string): string => {
 .markdown-content :deep(th) {
   background-color: #f9fafb;
   font-weight: 600;
+}
+
+/* 自定义滚动条样式 */
+.scrollbar-thin {
+  scrollbar-width: thin;
+}
+
+.scrollbar-thumb-gray-300::-webkit-scrollbar-thumb {
+  background-color: #d1d5db;
+  border-radius: 6px;
+}
+
+.scrollbar-track-gray-100::-webkit-scrollbar-track {
+  background-color: #f3f4f6;
+  border-radius: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: #d1d5db;
+  border-radius: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background-color: #f3f4f6;
+  border-radius: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background-color: #9ca3af;
 }
 </style>

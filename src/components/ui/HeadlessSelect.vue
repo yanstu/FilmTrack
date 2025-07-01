@@ -1,5 +1,5 @@
 <template>
-  <Listbox v-model="selectedValue" as="div" class="relative" style="z-index: 99999;">
+  <Listbox v-model="selectedValue" as="div" class="relative">
     <div class="relative">
       <ListboxButton
         class="relative w-full cursor-pointer rounded-xl bg-white/80 backdrop-blur-sm

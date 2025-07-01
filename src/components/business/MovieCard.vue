@@ -93,10 +93,10 @@
       <div v-if="movie.type === 'tv' && (movie.current_episode || movie.total_episodes)" class="mb-2">
         <div class="flex items-center justify-between text-xs text-gray-600 mb-1">
           <span>观看进度</span>
-          <span>{{ movie.current_episode || 0 }}/{{ movie.total_episodes || '?' }}</span>
+          <span>{{ getTotalWatchedEpisodes() }}/{{ movie.total_episodes || '?' }}</span>
         </div>
         <div class="w-full bg-gray-200 rounded-full h-1.5">
-          <div 
+          <div
             class="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
             :style="{ width: `${getWatchProgress()}%` }"
           ></div>
@@ -134,8 +134,65 @@ const emit = defineEmits<{
 
 // 计算属性
 const getWatchProgress = () => {
-  if (!props.movie.current_episode || !props.movie.total_episodes) return 0;
-  return Math.round((props.movie.current_episode / props.movie.total_episodes) * 100);
+  const movie = props.movie;
+  if (!movie || movie.type !== 'tv') return 0;
+
+  // 计算累计观看集数（与详情页逻辑一致）
+  let totalWatchedEpisodes = 0;
+  const totalEpisodes = movie.total_episodes || 0;
+
+  if (movie.seasons_data && movie.current_season) {
+    // 使用seasons_data计算累计集数
+    const seasons = Object.values(movie.seasons_data)
+      .sort((a, b) => a.season_number - b.season_number);
+
+    for (const season of seasons) {
+      if (season.season_number < movie.current_season) {
+        // 前面的季全部看完
+        totalWatchedEpisodes += season.episode_count;
+      } else if (season.season_number === movie.current_season) {
+        // 当前季看了部分
+        totalWatchedEpisodes += movie.current_episode || 0;
+        break;
+      }
+    }
+  } else {
+    // 回退到传统方式
+    totalWatchedEpisodes = movie.current_episode || 0;
+  }
+
+  if (totalEpisodes === 0) return 0;
+  return Math.round((totalWatchedEpisodes / totalEpisodes) * 100);
+};
+
+// 获取累计观看集数
+const getTotalWatchedEpisodes = () => {
+  const movie = props.movie;
+  if (!movie || movie.type !== 'tv') return 0;
+
+  let totalWatchedEpisodes = 0;
+
+  if (movie.seasons_data && movie.current_season) {
+    // 使用seasons_data计算累计集数
+    const seasons = Object.values(movie.seasons_data)
+      .sort((a, b) => a.season_number - b.season_number);
+
+    for (const season of seasons) {
+      if (season.season_number < movie.current_season) {
+        // 前面的季全部看完
+        totalWatchedEpisodes += season.episode_count;
+      } else if (season.season_number === movie.current_season) {
+        // 当前季看了部分
+        totalWatchedEpisodes += movie.current_episode || 0;
+        break;
+      }
+    }
+  } else {
+    // 回退到传统方式
+    totalWatchedEpisodes = movie.current_episode || 0;
+  }
+
+  return totalWatchedEpisodes;
 };
 
 // 方法

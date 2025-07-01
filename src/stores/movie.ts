@@ -20,9 +20,10 @@ import type {
   SearchFilters,
   Pagination,
   ViewMode,
+  LoadingState,
   ApiResponse
 } from '../types';
-import { withApiResponse } from '../utils/api-utils';
+
 
 export const useMovieStore = defineStore('movie', () => {
   // ==================== 状态 ====================
@@ -123,8 +124,8 @@ export const useMovieStore = defineStore('movie', () => {
       }, 0);
 
     const avgRating = movies.value
-      .filter(m => m.user_rating)
-      .reduce((sum, movie, _, arr) => sum + (movie.user_rating || 0) / arr.length, 0);
+      .filter(m => m.personal_rating)
+      .reduce((sum, movie, _, arr) => sum + (movie.personal_rating || 0) / arr.length, 0);
 
     return {
       totalMovies: totalMovies.value,
@@ -148,52 +149,47 @@ export const useMovieStore = defineStore('movie', () => {
    * 获取影视作品列表
    */
   const fetchMovies = async (): Promise<ApiResponse<void>> => {
-    return withApiResponse(async () => {
+    try {
       setLoading(true);
-      
+
       const response = await databaseAPI.getMovies();
       if (response.success && response.data) {
         movies.value = response.data;
-        pagination.value.total = response.total;
-        pagination.value.totalPages = Math.ceil(response.total / pagination.value.pageSize);
+        pagination.value.total = response.data.length;
+        pagination.value.totalPages = Math.ceil(response.data.length / pagination.value.pageSize);
       } else {
         throw new Error(response.error || '获取电影列表失败');
       }
-      
-      setLoading(false);
-    }, {
-      onError: (err) => {
-        error.value = err;
-        console.error('获取电影失败:', err);
-      },
-      onFinally: () => {
-        setLoading(false);
-      }
-    });
+
+      return { success: true, data: undefined };
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      setLoading(false, errorMessage);
+      console.error('获取电影失败:', err);
+      return { success: false, error: errorMessage };
+    }
   };
   
   /**
    * 获取影视作品详情
    */
   const fetchMovieDetail = async (id: string): Promise<ApiResponse<ParsedMovie | null>> => {
-    return withApiResponse(async () => {
+    try {
       setLoading(true);
-      
+
       const response = await databaseAPI.getMovieById(id);
       if (response.success && response.data) {
         currentMovie.value = response.data;
+        return { success: true, data: currentMovie.value };
       } else {
         throw new Error(response.error || '获取电影详情失败');
       }
-      
-      setLoading(false);
-      return currentMovie.value;
-    }, {
-      onError: (err) => {
-        error.value = err;
-        console.error('获取电影详情失败:', err);
-      }
-    });
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      setLoading(false, errorMessage);
+      console.error('获取电影详情失败:', err);
+      return { success: false, error: errorMessage };
+    }
   };
   
   /**
@@ -242,6 +238,7 @@ export const useMovieStore = defineStore('movie', () => {
         current_season: form.current_season,
         total_episodes: tmdbData.number_of_episodes,
         total_seasons: tmdbData.number_of_seasons,
+        seasons_data: form.seasons_data,
         air_status: tmdbData.status
       };
 
@@ -275,106 +272,119 @@ export const useMovieStore = defineStore('movie', () => {
    * 更新影视作品
    */
   const updateMovie = async (form: UpdateMovieForm): Promise<ApiResponse<void>> => {
-    return withApiResponse(async () => {
+    try {
       setLoading(true);
-      
+
       const response = await databaseAPI.updateMovie(form);
       if (response.success && response.data) {
         // 更新当前影视作品（如果正在查看）
         if (currentMovie.value?.id === form.id) {
           currentMovie.value = response.data;
         }
-        
+
         // 刷新列表
         await fetchMovies();
+        return { success: true, data: undefined };
       } else {
         throw new Error(response.error || '更新电影失败');
       }
-      
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      setLoading(false, errorMessage);
+      console.error('更新电影失败:', err);
+      return { success: false, error: errorMessage };
+    } finally {
       setLoading(false);
-    }, {
-      onError: (err) => {
-        error.value = err;
-        console.error('更新电影失败:', err);
-      }
-    });
+    }
   };
   
   /**
    * 删除影视作品
    */
   const deleteMovie = async (id: string): Promise<ApiResponse<void>> => {
-    return withApiResponse(async () => {
+    try {
       setLoading(true);
-      
+
       const response = await databaseAPI.deleteMovie(id);
       if (response.success) {
         // 如果删除的是当前查看的影视作品，清空当前影视作品
         if (currentMovie.value?.id === id) {
           currentMovie.value = null;
         }
-        
+
         // 刷新列表
         await fetchMovies();
+        return { success: true, data: undefined };
       } else {
         throw new Error(response.error || '删除电影失败');
       }
-      
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      setLoading(false, errorMessage);
+      console.error('删除电影失败:', err);
+      return { success: false, error: errorMessage };
+    } finally {
       setLoading(false);
-    }, {
-      onError: (err) => {
-        error.value = err;
-        console.error('删除电影失败:', err);
-      }
-    });
+    }
   };
   
   /**
    * 搜索TMDb影视作品
    */
   const searchTMDb = async (query: string, mediaType?: 'movie' | 'tv'): Promise<ApiResponse<TMDbMovie[]>> => {
-    return withApiResponse(async () => {
+    try {
       if (!query.trim()) {
         searchResults.value = [];
-        return [];
+        return { success: true, data: [] };
       }
-      
+
       searchLoading.value = true;
-      
-      const response = await tmdbAPI.searchMulti(query, 1, mediaType);
+
+      const response = await tmdbAPI.searchMulti(query, 1);
       if (response.success && response.data) {
         searchResults.value = response.data.results;
+        return { success: true, data: searchResults.value };
       } else {
         throw new Error(response.error || 'TMDb搜索失败');
       }
-      
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      setLoading(false, errorMessage);
+      console.error('TMDb搜索失败:', err);
+      return { success: false, error: errorMessage };
+    } finally {
       searchLoading.value = false;
-      return searchResults.value;
-    }, {
-      onError: (err) => {
-        error.value = err;
-        console.error('TMDb搜索失败:', err);
-      }
-    });
+    }
   };
   
   /**
    * 获取热门内容
    */
   const fetchPopularContent = async (): Promise<ApiResponse<void>> => {
-    return withApiResponse(async () => {
+    try {
       popularLoading.value = true;
-      
+
       const [moviesResult, tvResult] = await Promise.all([
-        tmdbAPI.getPopular('movie'),
-        tmdbAPI.getPopular('tv')
+        tmdbAPI.getPopularMovies(),
+        tmdbAPI.getPopularTV()
       ]);
-      
-      popularMovies.value = moviesResult.results;
-      popularTVShows.value = tvResult.results;
-      
+
+      if (moviesResult.success && moviesResult.data) {
+        popularMovies.value = moviesResult.data.results;
+      }
+      if (tvResult.success && tvResult.data) {
+        popularTVShows.value = tvResult.data.results;
+      }
+
+      return { success: true, data: undefined };
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      setLoading(false, errorMessage);
+      console.error('获取热门内容失败:', err);
+      return { success: false, error: errorMessage };
+    } finally {
       popularLoading.value = false;
-    });
+    }
   };
   
   /**
@@ -443,15 +453,19 @@ export const useMovieStore = defineStore('movie', () => {
    * 获取TMDb影视作品详情
    */
   const fetchTMDbDetail = async (id: number, mediaType: 'movie' | 'tv'): Promise<ApiResponse<TMDbMovieDetail>> => {
-    return withApiResponse(async () => {
-      let response;
+    try {
+      let response: ApiResponse<TMDbMovieDetail>;
       if (mediaType === 'movie') {
         response = await tmdbAPI.getMovieDetails(id);
       } else {
         response = await tmdbAPI.getTVDetails(id);
       }
       return response;
-    });
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      console.error('获取TMDb详情失败:', err);
+      return { success: false, error: errorMessage };
+    }
   };
   
   /**
@@ -482,7 +496,7 @@ export const useMovieStore = defineStore('movie', () => {
    * 获取观看历史（基于movies数据）
    */
   const fetchWatchHistory = async (movieId?: string): Promise<ApiResponse<WatchHistory[]>> => {
-    return withApiResponse(async () => {
+    try {
       const moviesResponse = await databaseAPI.getMovies();
       if (moviesResponse.success && moviesResponse.data) {
         // 转换movies数据为历史格式
@@ -495,31 +509,33 @@ export const useMovieStore = defineStore('movie', () => {
             watched_date: movie.updated_at,
             episode_number: movie.current_episode,
             season_number: movie.current_season,
+            duration: movie.runtime || 0,
             duration_minutes: null,
             progress: movie.status === 'completed' ? 1.0 : 0.5,
             notes: movie.notes,
-            created_at: movie.created_at
+            created_at: movie.created_at,
+            updated_at: movie.updated_at
           } as WatchHistory))
           .sort((a, b) => new Date(b.watched_date).getTime() - new Date(a.watched_date).getTime());
-        
+
         watchHistory.value = historyData;
-        return historyData;
+        return { success: true, data: historyData };
       } else {
         throw new Error(moviesResponse.error || '获取观看历史失败');
       }
-    }, {
-      onError: (err) => {
-        error.value = err;
-        console.error('获取观看历史失败:', err);
-      }
-    });
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      setLoading(false, errorMessage);
+      console.error('获取观看历史失败:', err);
+      return { success: false, error: errorMessage };
+    }
   };
   
   /**
    * 清理错误信息
    */
   const clearError = () => {
-    error.value = null;
+    setLoading(false);
   };
   
   /**

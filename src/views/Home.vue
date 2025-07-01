@@ -137,7 +137,7 @@
                   <p class="text-white text-sm font-medium truncate">{{ movie.title }}</p>
                   <div class="mt-1">
                     <p class="text-white text-xs">
-                      {{ movie.current_episode || 0 }}/{{ movie.total_episodes || '?' }} 集
+                      {{ getTotalWatchedEpisodes(movie) }}/{{ movie.total_episodes || '?' }} 集
                     </p>
                   </div>
                 </div>
@@ -262,6 +262,35 @@ const getMovieImageURL = (path: string | undefined) => {
 
 const navigateToDetail = (movieId: string) => {
   router.push(`/detail/${movieId}`)
+}
+
+// 获取累计观看集数（与详情页逻辑一致）
+const getTotalWatchedEpisodes = (movie: Movie) => {
+  if (!movie || movie.type !== 'tv') return 0;
+
+  let totalWatchedEpisodes = 0;
+
+  if (movie.seasons_data && movie.current_season) {
+    // 使用seasons_data计算累计集数
+    const seasons = Object.values(movie.seasons_data)
+      .sort((a, b) => a.season_number - b.season_number);
+
+    for (const season of seasons) {
+      if (season.season_number < movie.current_season) {
+        // 前面的季全部看完
+        totalWatchedEpisodes += season.episode_count;
+      } else if (season.season_number === movie.current_season) {
+        // 当前季看了部分
+        totalWatchedEpisodes += movie.current_episode || 0;
+        break;
+      }
+    }
+  } else {
+    // 回退到传统方式
+    totalWatchedEpisodes = movie.current_episode || 0;
+  }
+
+  return totalWatchedEpisodes;
 }
 
 // 数据加载方法

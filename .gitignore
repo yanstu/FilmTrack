@@ -40,6 +40,7 @@ coverage/
 # IDEs and editors
 .cursor/*
 .vscode/*
+.augment/*
 !.vscode/extensions.json
 !.vscode/settings.json
 !.vscode/tasks.json

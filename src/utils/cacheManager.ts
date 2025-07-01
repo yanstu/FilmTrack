@@ -228,6 +228,6 @@ export class CacheManager {
 export const cacheManager = CacheManager;
 
 // 在开发环境下暴露到全局对象，便于调试
-if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+if (typeof window !== 'undefined' && import.meta.env.DEV) {
   (window as any).cacheManager = cacheManager;
 }

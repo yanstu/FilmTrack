@@ -157,6 +157,18 @@ async fn open_download_url(url: String) -> Result<(), String> {
     UpdateService::open_download_url(&url)
 }
 
+/// 获取文件信息
+#[tauri::command]
+async fn get_file_info(url: String) -> Result<filmtrack_lib::models::FileInfo, String> {
+    UpdateService::get_file_info(&url).await
+}
+
+/// 取消下载
+#[tauri::command]
+async fn cancel_download() -> Result<(), String> {
+    UpdateService::cancel_download()
+}
+
 /// 退出应用
 #[tauri::command]
 async fn exit_app(app_handle: AppHandle) -> Result<(), String> {
@@ -210,6 +222,14 @@ async fn write_douban_import_log(app_handle: AppHandle, log_message: String, ses
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            // 当尝试启动第二个实例时，显示并聚焦现有窗口
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
+                let _ = window.unminimize();
+            }
+        }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_sql::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
@@ -318,7 +338,9 @@ pub fn run() {
             update_app_config,
             check_for_update,
             ignore_version,
+            get_file_info,
             download_update,
+            cancel_download,
             open_installer,
             is_update_downloaded,
             open_download_url,

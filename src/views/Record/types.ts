@@ -2,7 +2,7 @@
  * Record 页面相关类型定义
  */
 
-import type { TMDbMovie } from '../../types';
+import type { TMDbMovie, SeasonsData } from '../../types';
 
 export interface RecordForm {
   title: string;
@@ -22,6 +22,7 @@ export interface RecordForm {
   total_seasons?: number;
   current_episode: number;
   current_season: number;
+  seasons_data?: SeasonsData;
   air_status: string;
 }
 

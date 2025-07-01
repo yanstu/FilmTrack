@@ -1,7 +1,6 @@
 {
   "name": "filmtrack",
   "private": false,
-  "version": "0.2.0",
   "description": "个人影视管理平台 - 追踪您的观影足迹",
   "author": "FilmTrack Team",
   "license": "MIT",

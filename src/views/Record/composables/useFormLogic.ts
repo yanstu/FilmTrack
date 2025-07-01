@@ -52,6 +52,16 @@ export function useFormLogic(
 
   // 设置到最后一集
   const setToLastEpisode = () => {
+    // 如果有seasons_data，使用当前季的集数
+    if (form.value.seasons_data && form.value.current_season) {
+      const currentSeasonData = form.value.seasons_data[form.value.current_season.toString()];
+      if (currentSeasonData?.episode_count) {
+        form.value.current_episode = currentSeasonData.episode_count;
+        return;
+      }
+    }
+
+    // 回退到传统方式
     if (form.value.total_episodes) {
       form.value.current_episode = form.value.total_episodes;
     }
@@ -75,7 +85,8 @@ export function useFormLogic(
         notes: form.value.notes || undefined,
         watch_source: form.value.watch_source || undefined,
         current_episode: form.value.current_episode || undefined,
-        current_season: form.value.current_season || undefined
+        current_season: form.value.current_season || undefined,
+        seasons_data: form.value.seasons_data || undefined
       };
 
       const response = await movieStore.addMovie(movieData);
