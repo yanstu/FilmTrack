@@ -30,9 +30,6 @@ pub struct AppConfig {
 pub struct DatabaseConfig {
     /// 数据库名称
     pub name: String,
-    
-    /// 数据库版本
-    pub version: u32,
 }
 
 /// 缓存配置
@@ -40,12 +37,6 @@ pub struct DatabaseConfig {
 pub struct CacheConfig {
     /// 缓存目录名称
     pub dir_name: String,
-    
-    /// 缓存过期时间（小时）
-    pub expiration_hours: u32,
-    
-    /// 最大缓存大小（MB）
-    pub max_size_mb: u32,
 }
 
 /// 爬虫配置
@@ -54,12 +45,6 @@ pub struct ScraperConfig {
     /// 请求间隔（毫秒）
     pub request_interval_ms: u64,
     
-    /// 请求超时（毫秒）
-    pub request_timeout_ms: u64,
-    
-    /// 最大重试次数
-    pub max_retries: u32,
-    
     /// 用户代理
     pub user_agent: String,
 }
@@ -67,14 +52,8 @@ pub struct ScraperConfig {
 /// 应用信息
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppInfo {
-    /// 应用名称
-    pub name: String,
-    
     /// 应用版本
     pub version: String,
-    
-    /// 作者
-    pub author: String,
 }
 
 /// 更新配置
@@ -105,24 +84,17 @@ impl Default for AppConfig {
     fn default() -> Self {
         Self {
             database: DatabaseConfig {
-                name: "filmtrack.db".to_string(),
-                version: 1,
+                name: "filmtrack.db".to_string()
             },
             cache: CacheConfig {
                 dir_name: "cache".to_string(),
-                expiration_hours: 24 * 7, // 一周
-                max_size_mb: 500,
             },
             scraper: ScraperConfig {
                 request_interval_ms: 1500,
-                request_timeout_ms: 10000,
-                max_retries: 3,
                 user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36".to_string(),
             },
             app: AppInfo {
-                name: env!("CARGO_PKG_NAME").to_string(),
                 version: env!("CARGO_PKG_VERSION").to_string(),
-                author: env!("CARGO_PKG_AUTHORS").to_string(),
             },
             update: UpdateConfig {
                 check_on_startup: true,
@@ -167,7 +139,10 @@ impl ConfigManager {
                     let result = serde_json::from_str::<AppConfig>(&content);
                     // 添加兼容性处理，处理旧版本的配置文件
                     match result {
-                        Ok(loaded_config) => {
+                        Ok(mut loaded_config) => {
+                            // 确保应用版本始终使用当前编译时的版本
+                            loaded_config.app.version = env!("CARGO_PKG_VERSION").to_string();
+
                             let mut config = CONFIG.write().map_err(|e| format!("配置锁定失败: {}", e))?;
                             *config = loaded_config;
                             Ok(())

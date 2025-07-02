@@ -201,7 +201,7 @@ impl UpdateService {
     pub async fn check_for_update() -> Result<UpdateCheckResult, String> {
         // 获取应用配置
         let config = ConfigManager::get();
-        let current_version = config.app.version.clone();
+        let current_version = env!("CARGO_PKG_VERSION").to_string();
         let update_url = config.update.update_url.clone();
         
         // 记录最后检查时间
@@ -263,28 +263,30 @@ impl UpdateService {
     }
 
     /// 比较版本号
+    /// 返回值：1 表示 version1 > version2，-1 表示 version1 < version2，0 表示相等
     pub fn compare_versions(version1: &str, version2: &str) -> i32 {
         let v1_parts: Vec<u32> = version1
             .split('.')
             .map(|s| s.parse::<u32>().unwrap_or(0))
             .collect();
-        
+
         let v2_parts: Vec<u32> = version2
             .split('.')
             .map(|s| s.parse::<u32>().unwrap_or(0))
             .collect();
-        
-        for i in 0..3 {
+
+        let max_len = v1_parts.len().max(v2_parts.len());
+        for i in 0..max_len {
             let v1 = v1_parts.get(i).unwrap_or(&0);
             let v2 = v2_parts.get(i).unwrap_or(&0);
-            
+
             if v1 > v2 {
                 return 1;
             } else if v1 < v2 {
                 return -1;
             }
         }
-        
+
         0
     }
 
