@@ -1,5 +1,6 @@
 {
   "name": "filmtrack",
+  "version": "0.3.0",
   "private": false,
   "description": "个人影视管理平台 - 追踪您的观影足迹",
   "author": "FilmTrack Team",
