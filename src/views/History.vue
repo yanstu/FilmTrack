@@ -1,8 +1,8 @@
 <template>
   <div class="h-full bg-gradient-to-br from-gray-50 via-white to-blue-50 relative">
     <!-- 顶部区域 -->
-    <div class="sticky top-0 z-20 bg-white/70 backdrop-blur-lg border-b border-gray-200/30">
-      <div class="container mx-auto px-6 py-6">
+    <div class="sticky top-0 z-20 bg-white/70 backdrop-blur-lg border-b border-gray-200/30 animate-fade-in-down" style="width: calc(100% - 10px);animation-delay: 150ms;">
+      <div class="container px-6 py-6">
         <!-- 页面标题和统计 -->
         <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
           <div>
@@ -34,7 +34,7 @@
     </div>
 
     <!-- 主要内容区域 -->
-    <div id="scroll-container" class="container mx-auto px-6 py-8 absolute overflow-y-auto inset-0">
+    <div id="scroll-container" class="container mx-auto px-6 py-8 absolute overflow-y-auto inset-0 animate-fade-in-up" style="animation-delay: 150ms;">
       <!-- 错误状态 -->
       <div v-if="loadError" class="text-center py-8">
         <div class="text-red-600 mb-4">{{ loadError }}</div>
@@ -148,7 +148,7 @@
       <!-- 空状态 -->
       <div v-else-if="isEmpty" class="empty-state">
         <div class="empty-icon">
-          <svg class="w-20 h-20 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-20 h-20 text-gray-400 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
               d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
@@ -496,7 +496,7 @@ onMounted(async () => {
 
 /* 空状态样式 */
 .empty-state {
-  @apply text-center py-16;
+  @apply text-center py-36;
 }
 
 .empty-icon {
@@ -515,34 +515,31 @@ onMounted(async () => {
   @apply inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors duration-200 shadow-lg hover:shadow-xl;
 }
 
-/* 响应式优化 */
-@media (max-width: 768px) {
-  .timeline-date {
-    @apply flex-col items-start space-y-1;
-    top: 180px;
-    /* 移动端可能需要更大的间距 */
-  }
+/* 页面进入动画 */
+.animate-fade-in-down {
+  animation: fadeInDown 0.4s ease-out both;
+}
 
-  .movie-card {
-    @apply flex-col space-x-0 space-y-4;
-  }
+.animate-fade-in-up {
+  animation: fadeInUp 0.4s ease-out both;
+}
 
-  .movie-poster {
-    @apply self-center;
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-15px);
   }
-
-  .poster-image {
-    @apply w-24 h-32;
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
-/* 动画 */
 @keyframes fadeInUp {
   from {
     opacity: 0;
     transform: translateY(20px);
   }
-
   to {
     opacity: 1;
     transform: translateY(0);

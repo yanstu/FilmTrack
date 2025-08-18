@@ -54,7 +54,7 @@ import StorageService, { StorageKey } from '../../utils/storage';
 const appWindow = getCurrentWindow();
 
 // 应用标题
-const appTitle = 'FilmTrack';
+const appTitle = '影迹';
 
 // 应用设置
 const appSettings = ref({

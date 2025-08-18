@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "FilmTrack",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "identifier": "com.yanstu.filmtrack",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "FilmTrack - 个人影视管理平台",
+        "title": "影迹 - 个人影视管理平台",
         "width": 1600,
         "height": 900,
         "decorations": false,

@@ -167,12 +167,36 @@ impl ConfigManager {
         } else {
             // 如果配置文件不存在，使用默认配置
             let mut config = CONFIG.write().map_err(|e| format!("配置锁定失败: {}", e))?;
-            *config = default_config;
+            *config = default_config.clone();
 
             // 尝试保存默认配置，但不阻塞启动
-            if let Err(e) = Self::save(app_handle) {
-                eprintln!("保存默认配置失败: {}", e);
-            }
+            // 使用异步方式保存，避免阻塞主线程
+            let app_handle_clone = app_handle.clone();
+            std::thread::spawn(move || {
+                // 等待一小段时间确保应用完全启动
+                std::thread::sleep(std::time::Duration::from_millis(500));
+                
+                if let Err(e) = Self::save(&app_handle_clone) {
+                    eprintln!("保存默认配置失败: {}", e);
+                    // 尝试创建配置目录
+                    if let Ok(config_path) = Self::get_config_path(&app_handle_clone) {
+                        if let Some(parent) = config_path.parent() {
+                            if let Err(dir_err) = std::fs::create_dir_all(parent) {
+                                eprintln!("创建配置目录失败: {}", dir_err);
+                            } else {
+                                // 目录创建成功，再次尝试保存
+                                if let Err(save_err) = Self::save(&app_handle_clone) {
+                                    eprintln!("再次保存配置失败: {}", save_err);
+                                } else {
+                                    println!("配置文件已成功创建");
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    println!("默认配置文件已创建");
+                }
+            });
 
             Ok(())
         }

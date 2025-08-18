@@ -26,17 +26,6 @@
       style="animation-delay: 150ms;"
     >
       <div class="max-w-7xl mx-auto pt-48">
-        <!-- 状态组件 -->
-        <LibraryStates
-          :loading="infiniteScroll.loading.value"
-          :is-empty="infiniteScroll.isEmpty.value"
-          :has-more="infiniteScroll.hasMore.value"
-          :item-count="infiniteScroll.items.value.length"
-          :error="infiniteScroll.error.value"
-          :search-query="searchQuery"
-          @retry="infiniteScroll.refresh"
-        />
-
         <!-- 网格视图 -->
         <GridView
           v-if="!infiniteScroll.isEmpty.value && viewMode === 'grid'"
@@ -57,6 +46,17 @@
           :get-image-u-r-l="getImageURL"
           @toggle-select="toggleSelectItem"
           @navigate-to-detail="navigateToDetail"
+        />
+        
+        <!-- 状态组件 -->
+        <LibraryStates
+          :loading="infiniteScroll.loading.value"
+          :is-empty="infiniteScroll.isEmpty.value"
+          :has-more="infiniteScroll.hasMore.value"
+          :item-count="infiniteScroll.items.value.length"
+          :error="infiniteScroll.error.value"
+          :search-query="searchQuery"
+          @retry="infiniteScroll.refresh"
         />
       </div>
     </div>
