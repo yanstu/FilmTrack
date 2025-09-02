@@ -17,10 +17,11 @@
         <!-- 应用行为设置 -->
         <div class="setting-section">
           <h3 class="setting-section-title">应用行为</h3>
+          <!-- 最小化到托盘 -->
           <div class="setting-item">
             <div class="setting-item-info">
-              <div class="setting-item-label">点击关闭按钮最小化到托盘</div>
-              <div class="setting-item-description">启用后，点击关闭按钮会将应用最小化到系统托盘而不是退出程序</div>
+              <div class="setting-item-label">最小化到系统托盘</div>
+              <div class="setting-item-description">关闭窗口时最小化到系统托盘而不是退出应用</div>
             </div>
             <label class="toggle-switch">
               <input
@@ -31,7 +32,25 @@
               <span class="toggle-slider"></span>
             </label>
           </div>
+
+          <!-- 允许调整窗口大小 -->
+          <div class="setting-item">
+            <div class="setting-item-info">
+              <div class="setting-item-label">允许调整窗口大小</div>
+              <div class="setting-item-description">启用后可以拖拽窗口边缘调整大小，窗口大小会自动记忆</div>
+            </div>
+            <label class="toggle-switch">
+              <input
+                type="checkbox"
+                v-model="settings.window.resizable"
+                class="toggle-input"
+              />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
         </div>
+
+
 
         <!-- 缓存管理 -->
         <div class="setting-section">
@@ -114,8 +133,13 @@ interface Emits {
   (e: 'save', settings: AppSettings): void;
 }
 
+interface WindowSettings {
+  resizable: boolean;
+}
+
 interface AppSettings {
   minimizeToTray: boolean;
+  window: WindowSettings;
 }
 
 interface StorageInfo {
@@ -136,10 +160,14 @@ const emit = defineEmits<Emits>();
 
 // 响应式状态
 const settings = ref<AppSettings>({
-  minimizeToTray: true
+  minimizeToTray: true,
+  window: {
+    resizable: true
+  }
 });
 
 const isClearing = ref(false);
+
 const cacheSize = ref('计算中...');
 const dbSize = ref('计算中...');
 
@@ -153,10 +181,38 @@ const confirmDialog = ref({
 });
 
 // 方法
-const handleSave = () => {
-  emit('save', settings.value);
-  // 触发设置更新事件
-  window.dispatchEvent(new CustomEvent('settings-updated'));
+const handleSave = async () => {
+  try {
+    // 保存到本地存储
+    StorageService.set(StorageKey.SETTINGS, settings.value);
+    
+    // 应用窗口可调整大小设置
+    await invoke('set_window_resizable', {
+      resizable: settings.value.window.resizable
+    });
+    
+    // 更新窗口配置到后端配置文件
+    const windowConfigResponse = await invoke('get_window_config');
+    if (windowConfigResponse.success) {
+      const currentConfig = windowConfigResponse.data;
+      currentConfig.resizable = settings.value.window.resizable;
+      
+      await invoke('update_window_config', {
+        windowConfig: currentConfig
+      });
+    }
+    
+    // 发送保存事件
+    emit('save', settings.value);
+    
+    // 触发设置更新事件
+    window.dispatchEvent(new CustomEvent('settings-updated'));
+    
+    console.log('设置已保存');
+  } catch (error) {
+    console.error('保存设置失败:', error);
+  }
+  
   emit('close');
 };
 
@@ -230,18 +286,27 @@ const updateCacheInfo = async () => {
   }
 };
 
-const loadSettings = () => {
-  const savedSettings = StorageService.get(StorageKey.SETTINGS, {
-    minimizeToTray: true
-  });
-  if (savedSettings) {
-    settings.value = { ...settings.value, ...savedSettings };
+
+
+const loadSettings = async () => {
+  try {
+    // 从本地存储加载基本设置
+    const savedSettings = StorageService.get(StorageKey.SETTINGS, {
+      minimizeToTray: true,
+      window: {
+        resizable: true
+      }
+    });
+    
+    settings.value = savedSettings;
+  } catch (error) {
+    console.error('加载设置失败:', error);
   }
 };
 
 // 生命周期
-onMounted(() => {
-  loadSettings();
+onMounted(async () => {
+  await loadSettings();
   updateCacheInfo();
 });
 </script>
@@ -338,4 +403,6 @@ onMounted(() => {
 .setting-info-value {
   @apply text-sm text-gray-900 font-mono break-all;
 }
-</style> 
+
+
+</style>

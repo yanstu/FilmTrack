@@ -1,5 +1,5 @@
 <template>
-  <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+  <div class="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3 sm:gap-4 md:gap-6">
     <div
       v-for="movie in movies"
       :key="movie.id"
@@ -8,8 +8,8 @@
       @click="handleItemClick(movie.id)"
     >
       <div 
-        class="relative bg-white/90 rounded-2xl p-4 border border-gray-200/50
-               hover:bg-white hover:border-gray-300/50 transition-colors duration-300
+        class="relative bg-white/90 rounded-2xl p-4 lg:p-4 md:p-3 border border-gray-200/50
+               hover:bg-white hover:border-gray-300/50 transition-all duration-300
                hover:shadow-md"
         :class="{'border-blue-500 bg-blue-50/50': isItemSelected(movie.id)}"
         style="transform: none; will-change: auto; isolation: auto;"
@@ -35,10 +35,10 @@
         </div>
         
         <!-- 标题和状态 -->
-        <div class="flex items-start justify-between mb-2">
-          <h3 class="font-semibold text-gray-900 line-clamp-2 flex-1 pr-2">{{ movie.title }}</h3>
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="font-semibold text-gray-900 line-clamp-2 flex-1 pr-2 text-[16px] lg:text-[16px] md:text-[13px]">{{ movie.title }}</h3>
           <span
-            class="px-2 py-1 rounded-full text-xs font-medium flex-shrink-0"
+            class="px-2 py-1 rounded-full font-medium flex-shrink-0 text-xs lg:text-xs md:text-[11px]"
             :class="getStatusBadgeClass(movie.status)"
           >
             {{ getStatusLabel(movie.status) }}

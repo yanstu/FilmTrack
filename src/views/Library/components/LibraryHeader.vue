@@ -40,9 +40,9 @@
       </div>
       
       <!-- 搜索和筛选区域 -->
-      <div class="flex flex-col lg:flex-row lg:items-center space-y-4 lg:space-y-0 lg:space-x-6 w-full">
+      <div class="flex flex-col sm:flex-row sm:items-center space-y-4 sm:space-y-0 sm:space-x-4 w-full">
         <!-- 搜索输入框 -->
-        <div class="relative flex-1">
+        <div class="relative flex-1 sm:max-w-md">
           <SearchIcon 
             :size="20" 
             class="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none z-10" 

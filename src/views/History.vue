@@ -4,14 +4,14 @@
     <div class="sticky top-0 z-20 bg-white/70 backdrop-blur-lg border-b border-gray-200/30 animate-fade-in-down" style="width: calc(100% - 10px);animation-delay: 150ms;">
       <div class="container px-6 py-6">
         <!-- 页面标题和统计 -->
-        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+        <div class="flex flex-row items-center justify-between gap-6">
           <div>
             <h1 class="text-3xl font-bold text-gray-900 mb-2">观看历史</h1>
             <p class="text-gray-600">追踪您的观影足迹，记录美好时光</p>
           </div>
 
           <!-- 统计卡片 -->
-          <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="grid grid-cols-4 gap-4 grid-rows-1">
             <div class="stat-card">
               <div class="text-2xl font-bold text-blue-600">{{ stats.total }}</div>
               <div class="text-sm text-gray-600">总数</div>

@@ -6,6 +6,7 @@ import { ref, onMounted, type Ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { useMovieStore } from '../../../stores/movie';
 import { tmdbAPI } from '../../../utils/api';
+import { removeCachedImages } from '../../../utils/imageCache';
 import type { Movie } from '../../../types';
 import type { DetailState, DialogState } from '../types';
 
@@ -80,10 +81,27 @@ export function useDetailData(
       await movieStore.updateMovie(updatedMovie);
       detailState.value.movie = updatedMovie;
 
-      // 重新加载背景图片
-      if (detailState.value.movie.backdrop_path) {
-        detailState.value.backdropImages = [detailState.value.movie.backdrop_path];
+      // 清除旧的背景图片缓存
+      const oldBackdropImages = detailState.value.backdropImages || [];
+      if (oldBackdropImages.length > 0) {
+        // 构建完整的图片URL用于清除缓存
+        const imageUrlsToRemove = oldBackdropImages.map(path => {
+          if (path.startsWith('http')) {
+            return path;
+          }
+          return `https://image.tmdb.org/t/p/original${path}`;
+        });
+        
+        try {
+          await removeCachedImages(imageUrlsToRemove);
+          console.log('已清除旧的背景图片缓存');
+        } catch (error) {
+          console.warn('清除背景图片缓存失败:', error);
+        }
       }
+
+      // 重新加载背景图片
+      await loadBackdropImages();
 
       showDialog('success', '更新成功', '影视信息已更新');
     } catch (error) {

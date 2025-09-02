@@ -97,6 +97,27 @@ impl CacheService {
         
         Ok(())
     }
+
+    /// 删除特定图片缓存
+    pub fn remove_cached_image(app: &AppHandle, image_url: &str) -> Result<(), String> {
+        let cache_path = Self::get_cache_path(app, image_url)?;
+        
+        if cache_path.exists() {
+            fs::remove_file(&cache_path)
+                .map_err(|e| format!("删除缓存图片失败: {}", e))?;
+        }
+        
+        Ok(())
+    }
+
+    /// 删除多个图片缓存
+    pub fn remove_cached_images(app: &AppHandle, image_urls: &[String]) -> Result<(), String> {
+        for image_url in image_urls {
+            // 忽略单个文件删除失败，继续删除其他文件
+            let _ = Self::remove_cached_image(app, image_url);
+        }
+        Ok(())
+    }
 }
 
 /// 存储服务
@@ -455,4 +476,4 @@ impl UpdateService {
     pub fn open_download_url(url: &str) -> Result<(), String> {
         open::that(url).map_err(|e| format!("打开下载链接失败: {}", e))
     }
-} 
+}

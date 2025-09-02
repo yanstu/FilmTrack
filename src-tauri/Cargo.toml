@@ -1,6 +1,6 @@
 [package]
 name = "filmtrack"
-version = "0.3.1"
+version = "0.3.2"
 description = "影迹 - 追踪您的观影足迹"
 authors = ["yanstu"]
 license = "MIT"

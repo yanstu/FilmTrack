@@ -17,8 +17,19 @@ export interface ModalState {
   onCancel?: () => void;
 }
 
+export interface WindowSettings {
+  width: number;
+  height: number;
+  minWidth: number;
+  minHeight: number;
+  maxWidth?: number;
+  maxHeight?: number;
+  resizable: boolean;
+}
+
 export interface AppSettings {
   minimizeToTray: boolean;
+  window: WindowSettings;
 }
 
 export const useAppStore = defineStore('app', () => {
@@ -41,7 +52,16 @@ export const useAppStore = defineStore('app', () => {
   
   // 应用设置
   const settings = reactive<AppSettings>({
-    minimizeToTray: true
+    minimizeToTray: true,
+    window: {
+      width: 1600,
+      height: 900,
+      minWidth: 800,
+      minHeight: 600,
+      maxWidth: undefined,
+      maxHeight: undefined,
+      resizable: true
+    }
   });
   
   // 设置加载状态
@@ -210,4 +230,4 @@ export const useAppStore = defineStore('app', () => {
     saveSettings,
     updateSettings
   };
-}); 
+});

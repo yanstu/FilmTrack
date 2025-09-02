@@ -184,6 +184,58 @@ class ImageCacheManager {
     });
     this.urlCache.clear();
   }
+
+  /**
+   * 删除特定图片的缓存
+   * @param imageUrl 要删除的图片URL
+   */
+  async removeCachedImage(imageUrl: string): Promise<boolean> {
+    try {
+      // 从内存缓存中移除
+      const cachedUrl = this.urlCache.get(imageUrl);
+      if (cachedUrl && cachedUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(cachedUrl);
+      }
+      this.urlCache.delete(imageUrl);
+
+      // 从文件缓存中移除
+      const result = await invoke<ApiResponse<boolean>>('remove_cached_image', {
+        imageUrl
+      });
+
+      return result.success && result.data === true;
+    } catch (error) {
+      console.warn('删除缓存图片失败:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 删除多个图片的缓存
+   * @param imageUrls 要删除的图片URL数组
+   */
+  async removeCachedImages(imageUrls: string[]): Promise<boolean> {
+    try {
+      // 从内存缓存中移除
+      for (const imageUrl of imageUrls) {
+        const cachedUrl = this.urlCache.get(imageUrl);
+        if (cachedUrl && cachedUrl.startsWith('blob:')) {
+          URL.revokeObjectURL(cachedUrl);
+        }
+        this.urlCache.delete(imageUrl);
+      }
+
+      // 从文件缓存中移除
+      const result = await invoke<ApiResponse<boolean>>('remove_cached_images', {
+        imageUrls
+      });
+
+      return result.success && result.data === true;
+    } catch (error) {
+      console.warn('删除缓存图片失败:', error);
+      return false;
+    }
+  }
 }
 
 // 导出单例
@@ -207,8 +259,24 @@ export async function prefetchImages(imageUrls: string[]): Promise<void> {
 }
 
 /**
- * 清理内存缓存的便捷函数
+ * 清除内存缓存
  */
 export function clearMemoryCache(): void {
-  return imageCache.clearMemoryCache();
-} 
+  imageCache.clearMemoryCache();
+}
+
+/**
+ * 删除特定图片的缓存
+ * @param imageUrl 要删除的图片URL
+ */
+export async function removeCachedImage(imageUrl: string): Promise<boolean> {
+  return imageCache.removeCachedImage(imageUrl);
+}
+
+/**
+ * 删除多个图片的缓存
+ * @param imageUrls 要删除的图片URL数组
+ */
+export async function removeCachedImages(imageUrls: string[]): Promise<boolean> {
+  return imageCache.removeCachedImages(imageUrls);
+}
