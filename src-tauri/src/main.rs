@@ -1,6 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use tauri::{command, Manager, Emitter, menu::{MenuBuilder, MenuItem, PredefinedMenuItem}, tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState}, AppHandle, LogicalSize, LogicalPosition};
+use tauri::{command, Manager, Emitter, menu::{MenuBuilder, MenuItem, PredefinedMenuItem}, tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState}, AppHandle, LogicalSize, PhysicalPosition};
 use uuid::Uuid;
 use chrono::Utc;
 use filmtrack_lib::{
@@ -10,6 +10,27 @@ use filmtrack_lib::{
     config::{AppConfig, ConfigManager, WindowConfig}
 };
 use base64::{Engine as _, engine::general_purpose};
+
+/// 验证窗口位置是否有效
+/// 排除Windows系统中的特殊值和异常坐标
+fn is_valid_window_position(x: i32, y: i32) -> bool {
+    // 排除Windows系统的特殊值
+    if x == -32000 || y == -32000 {
+        return false;
+    }
+    
+    // 排除过于极端的负值（可能是DPI缩放问题）
+    if x < -10000 || y < -10000 {
+        return false;
+    }
+    
+    // 排除过于极端的正值（超出合理屏幕范围）
+    if x > 50000 || y > 50000 {
+        return false;
+    }
+    
+    true
+}
 
 /// 生成UUID
 #[command]
@@ -353,6 +374,7 @@ async fn save_window_size(app: AppHandle) -> Result<ApiResponse<String>, String>
 #[tauri::command]
 async fn get_window_position(app: AppHandle) -> Result<ApiResponse<(i32, i32)>, String> {
     if let Some(window) = app.get_webview_window("main") {
+        // 直接返回物理像素坐标，避免DPI缩放问题
         let position = window.outer_position()
             .map_err(|e| format!("获取窗口位置失败: {}", e))?;
         
@@ -366,7 +388,8 @@ async fn get_window_position(app: AppHandle) -> Result<ApiResponse<(i32, i32)>, 
 #[tauri::command]
 async fn set_window_position(app: AppHandle, x: i32, y: i32) -> Result<ApiResponse<String>, String> {
     if let Some(window) = app.get_webview_window("main") {
-        let position = LogicalPosition::new(x, y);
+        // 使用PhysicalPosition避免DPI缩放问题
+        let position = PhysicalPosition::new(x, y);
         window.set_position(position)
             .map_err(|e| format!("设置窗口位置失败: {}", e))?;
         
@@ -382,6 +405,11 @@ async fn save_window_position(app: AppHandle) -> Result<ApiResponse<String>, Str
     if let Some(window) = app.get_webview_window("main") {
         let position = window.outer_position()
             .map_err(|e| format!("获取窗口位置失败: {}", e))?;
+        
+        // 验证位置有效性：排除特殊值和异常坐标
+        if !is_valid_window_position(position.x, position.y) {
+            return Err("窗口位置无效，无法保存".to_string());
+        }
         
         // 获取当前窗口配置
         let mut window_config = ConfigManager::get_window_config();
@@ -462,11 +490,30 @@ pub fn run() {
                     eprintln!("应用窗口大小失败: {}", e);
                 }
                 
-                // 应用窗口位置（如果有保存的位置）
+                // 应用窗口位置（如果有保存的位置且位置有效）
                 if let (Some(x), Some(y)) = (window_config.x, window_config.y) {
-                    let position = LogicalPosition::new(x, y);
-                    if let Err(e) = window.set_position(position) {
-                        eprintln!("应用窗口位置失败: {}", e);
+                    if is_valid_window_position(x, y) {
+                        // 使用PhysicalPosition避免DPI缩放问题
+                        let position = PhysicalPosition::new(x, y);
+                        if let Err(e) = window.set_position(position) {
+                            eprintln!("应用窗口位置失败: {}", e);
+                            // 如果应用保存的位置失败，则居中显示
+                            if let Err(e) = window.center() {
+                                eprintln!("居中窗口失败: {}", e);
+                            }
+                        }
+                    } else {
+                        // 如果保存的位置无效，居中显示并清除无效位置
+                        if let Err(e) = window.center() {
+                            eprintln!("居中窗口失败: {}", e);
+                        }
+                        // 清除无效的位置配置
+                        let mut updated_config = window_config.clone();
+                        updated_config.x = None;
+                        updated_config.y = None;
+                        if let Err(e) = ConfigManager::update_window_config(updated_config, &app.app_handle()) {
+                            eprintln!("清除无效窗口位置失败: {}", e);
+                        }
                     }
                 } else {
                     // 如果没有保存的位置，居中显示
@@ -619,13 +666,16 @@ pub fn run() {
                                 if let Some(window) = app_handle.get_webview_window("main") {
                                     // 获取窗口位置
                                     if let Ok(position) = window.outer_position() {
-                                        let mut window_config = ConfigManager::get_window_config();
-                                        // 更新窗口位置
-                                        window_config.x = Some(position.x);
-                                        window_config.y = Some(position.y);
-                                        
-                                        if let Err(e) = ConfigManager::update_window_config(window_config, &app_handle) {
-                                            eprintln!("保存窗口位置失败: {}", e);
+                                        // 验证位置有效性：排除特殊值和异常坐标
+                                        if is_valid_window_position(position.x, position.y) {
+                                            let mut window_config = ConfigManager::get_window_config();
+                                            // 更新窗口位置
+                                            window_config.x = Some(position.x);
+                                            window_config.y = Some(position.y);
+                                            
+                                            if let Err(e) = ConfigManager::update_window_config(window_config, &app_handle) {
+                                                eprintln!("保存窗口位置失败: {}", e);
+                                            }
                                         }
                                     }
                                 }
