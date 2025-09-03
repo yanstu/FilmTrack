@@ -48,6 +48,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { invoke } from '@tauri-apps/api/core';
 import { useAppStore } from '../../stores/app';
 import StorageService, { StorageKey } from '../../utils/storage';
 
@@ -96,6 +97,8 @@ const getAppSettings = () => {
 // 窗口控制方法
 const minimizeWindow = async () => {
   try {
+    // 保存窗口状态
+    await invoke('save_window_state');
     await appWindow.minimize();
   } catch (error) {
     console.error('最小化窗口失败:', error);
@@ -109,6 +112,8 @@ const openSettings = () => {
 
 const closeWindow = async () => {
   try {
+    // 保存窗口状态
+    await invoke('save_window_state');
     // 根据设置决定是隐藏到托盘还是直接退出
     if (appSettings.value.minimizeToTray) {
       await appWindow.hide();

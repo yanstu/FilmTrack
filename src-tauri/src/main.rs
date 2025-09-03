@@ -1,6 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use tauri::{command, Manager, Emitter, menu::{MenuBuilder, MenuItem, PredefinedMenuItem}, tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState}, AppHandle, LogicalSize};
+use tauri::{command, Manager, Emitter, menu::{MenuBuilder, MenuItem, PredefinedMenuItem}, tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState}, AppHandle, LogicalSize, LogicalPosition};
 use uuid::Uuid;
 use chrono::Utc;
 use filmtrack_lib::{
@@ -349,7 +349,93 @@ async fn save_window_size(app: AppHandle) -> Result<ApiResponse<String>, String>
     }
 }
 
+/// 获取窗口位置
+#[tauri::command]
+async fn get_window_position(app: AppHandle) -> Result<ApiResponse<(i32, i32)>, String> {
+    if let Some(window) = app.get_webview_window("main") {
+        let position = window.outer_position()
+            .map_err(|e| format!("获取窗口位置失败: {}", e))?;
+        
+        Ok(ApiResponse::success((position.x, position.y)))
+    } else {
+        Err("未找到主窗口".to_string())
+    }
+}
 
+/// 设置窗口位置
+#[tauri::command]
+async fn set_window_position(app: AppHandle, x: i32, y: i32) -> Result<ApiResponse<String>, String> {
+    if let Some(window) = app.get_webview_window("main") {
+        let position = LogicalPosition::new(x, y);
+        window.set_position(position)
+            .map_err(|e| format!("设置窗口位置失败: {}", e))?;
+        
+        Ok(ApiResponse::success(format!("窗口位置已设置为: ({}, {})", x, y)))
+    } else {
+        Err("未找到主窗口".to_string())
+    }
+}
+
+/// 保存窗口位置
+#[tauri::command]
+async fn save_window_position(app: AppHandle) -> Result<ApiResponse<String>, String> {
+    if let Some(window) = app.get_webview_window("main") {
+        let position = window.outer_position()
+            .map_err(|e| format!("获取窗口位置失败: {}", e))?;
+        
+        // 获取当前窗口配置
+        let mut window_config = ConfigManager::get_window_config();
+        
+        // 更新窗口位置
+        window_config.x = Some(position.x);
+        window_config.y = Some(position.y);
+        
+        // 保存配置
+        ConfigManager::update_window_config(window_config, &app)
+            .map_err(|e| format!("保存窗口配置失败: {}", e))?;
+        
+        Ok(ApiResponse::success(format!("窗口位置已保存: ({}, {})", position.x, position.y)))
+    } else {
+        Err("未找到主窗口".to_string())
+    }
+}
+
+/// 保存窗口大小和位置
+#[tauri::command]
+async fn save_window_state(app: AppHandle) -> Result<ApiResponse<String>, String> {
+    if let Some(window) = app.get_webview_window("main") {
+        // 获取窗口大小
+        let logical_size = window.inner_size()
+            .map_err(|e| format!("获取窗口大小失败: {}", e))?;
+        let scale_factor = window.scale_factor()
+            .map_err(|e| format!("获取缩放因子失败: {}", e))?;
+        
+        // 计算真实的物理窗口大小
+        let actual_width = (logical_size.width as f64 / scale_factor).round() as u32;
+        let actual_height = (logical_size.height as f64 / scale_factor).round() as u32;
+        
+        // 获取窗口位置
+        let position = window.outer_position()
+            .map_err(|e| format!("获取窗口位置失败: {}", e))?;
+        
+        // 获取当前窗口配置
+        let mut window_config = ConfigManager::get_window_config();
+        
+        // 更新窗口大小和位置
+        window_config.width = actual_width;
+        window_config.height = actual_height;
+        window_config.x = Some(position.x);
+        window_config.y = Some(position.y);
+        
+        // 保存配置
+        ConfigManager::update_window_config(window_config, &app)
+            .map_err(|e| format!("保存窗口配置失败: {}", e))?;
+        
+        Ok(ApiResponse::success(format!("窗口状态已保存: {}x{} at ({}, {})", actual_width, actual_height, position.x, position.y)))
+    } else {
+        Err("未找到主窗口".to_string())
+    }
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -376,6 +462,19 @@ pub fn run() {
                     eprintln!("应用窗口大小失败: {}", e);
                 }
                 
+                // 应用窗口位置（如果有保存的位置）
+                if let (Some(x), Some(y)) = (window_config.x, window_config.y) {
+                    let position = LogicalPosition::new(x, y);
+                    if let Err(e) = window.set_position(position) {
+                        eprintln!("应用窗口位置失败: {}", e);
+                    }
+                } else {
+                    // 如果没有保存的位置，居中显示
+                    if let Err(e) = window.center() {
+                        eprintln!("居中窗口失败: {}", e);
+                    }
+                }
+                
                 // 应用最小窗口大小
                 let min_size = LogicalSize::new(window_config.min_width, window_config.min_height);
                 if let Err(e) = window.set_min_size(Some(min_size)) {
@@ -396,6 +495,41 @@ pub fn run() {
                 if let Err(e) = window.set_resizable(window_config.resizable) {
                     eprintln!("应用窗口可调整大小设置失败: {}", e);
                 }
+                
+                // 延迟显示窗口，创建平滑的启动体验
+                let window_clone = window.clone();
+                std::thread::spawn(move || {
+                    // 等待100毫秒让窗口完全配置好
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                    
+                    // 显示窗口
+                    if let Err(e) = window_clone.show() {
+                        eprintln!("显示窗口失败: {}", e);
+                        return;
+                    }
+                    
+                    // 通过JavaScript执行淡入动画
+                    let fade_in_script = r#"
+                        (function() {
+                            // 设置初始样式
+                            document.body.style.opacity = '0';
+                            document.body.style.transition = 'opacity 300ms ease-in-out';
+                            
+                            // 强制重绘
+                            document.body.offsetHeight;
+                            
+                            // 开始淡入动画
+                            setTimeout(() => {
+                                document.body.style.opacity = '1';
+                            }, 10);
+                        })();
+                    "#;
+                    
+                    // 执行淡入动画脚本
+                    if let Err(e) = window_clone.eval(fade_in_script) {
+                        eprintln!("执行淡入动画失败: {}", e);
+                    }
+                });
             }
             
             // 创建系统托盘
@@ -475,6 +609,28 @@ pub fn run() {
                                 }
                             });
                         },
+                        WindowEvent::Moved(_) => {
+                            // 窗口位置改变时保存到配置
+                            let app_handle = app_handle_for_resize.clone();
+                            std::thread::spawn(move || {
+                                // 延迟一点时间再保存，避免频繁保存
+                                std::thread::sleep(std::time::Duration::from_millis(500));
+                                
+                                if let Some(window) = app_handle.get_webview_window("main") {
+                                    // 获取窗口位置
+                                    if let Ok(position) = window.outer_position() {
+                                        let mut window_config = ConfigManager::get_window_config();
+                                        // 更新窗口位置
+                                        window_config.x = Some(position.x);
+                                        window_config.y = Some(position.y);
+                                        
+                                        if let Err(e) = ConfigManager::update_window_config(window_config, &app_handle) {
+                                            eprintln!("保存窗口位置失败: {}", e);
+                                        }
+                                    }
+                                }
+                            });
+                        },
                         _ => {}
                     }
                 });
@@ -540,7 +696,11 @@ pub fn run() {
             set_window_max_size,
             set_window_resizable,
             get_window_size,
-            save_window_size
+            save_window_size,
+            get_window_position,
+            set_window_position,
+            save_window_position,
+            save_window_state
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

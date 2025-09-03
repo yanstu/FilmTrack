@@ -5,7 +5,7 @@
   "identifier": "com.yanstu.filmtrack",
   "build": {
     "beforeDevCommand": "npm run dev",
-    "devUrl": "http://localhost:5420",
+    "devUrl": "http://localhost:10421",
     "beforeBuildCommand": "npx vite build",
     "frontendDist": "../dist"
   },
@@ -18,8 +18,7 @@
         "decorations": false,
         "resizable": true,
         "fullscreen": false,
-        "visible": true,
-        "center": true,
+        "visible": false,
         "minWidth": 800,
         "minHeight": 600
       }

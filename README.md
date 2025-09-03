@@ -11,7 +11,7 @@
 [![Vue](https://img.shields.io/badge/Vue-3.x-green)](https://vuejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)](https://www.typescriptlang.org/)
 
-[功能特性](#-功能特性) • [安装使用](#-安装使用) • [开发指南](#-开发指南) • [许可证](#-许可证)
+[功能特性](#-功能特性) • [安装使用](#-安装使用) • [开发指南](#-开发指南)
 
 </div>
 
@@ -186,11 +186,6 @@ filmtrack/
 - [ ] **移动端应用**：Android 伴侣应用
 - [ ] **多用户支持**：家庭成员独立账户管理
 - [ ] **云端同步**：支持数据云端备份和同步
-
-
-## 📄 许可证
-
-本项目采用 [MIT License](LICENSE) 开源协议。
 
 ## 🙏 致谢
 

@@ -87,6 +87,14 @@ pub struct WindowConfig {
     /// 窗口高度
     pub height: u32,
     
+    /// 窗口X坐标位置
+    #[serde(default)]
+    pub x: Option<i32>,
+    
+    /// 窗口Y坐标位置
+    #[serde(default)]
+    pub y: Option<i32>,
+    
     /// 最小窗口宽度
     pub min_width: u32,
     
@@ -138,6 +146,8 @@ impl Default for AppConfig {
             window: WindowConfig {
                 width: 1600,
                 height: 900,
+                x: None, // 首次启动时居中显示
+                y: None, // 首次启动时居中显示
                 min_width: 800,
                 min_height: 600,
                 max_width: None, // 无限制，支持全屏
