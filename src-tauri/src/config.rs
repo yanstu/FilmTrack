@@ -112,6 +112,46 @@ pub struct WindowConfig {
     pub resizable: bool,
 }
 
+impl WindowConfig {
+    pub fn normalize(mut self) -> Self {
+        const RECOMMENDED_WIDTH: u32 = 1600;
+        const RECOMMENDED_HEIGHT: u32 = 900;
+
+        self.min_width = self.min_width.max(800);
+        self.min_height = self.min_height.max(600);
+
+        if self.width < self.min_width || self.height < self.min_height {
+            self.width = RECOMMENDED_WIDTH;
+            self.height = RECOMMENDED_HEIGHT;
+        }
+
+        self.width = self.width.max(self.min_width);
+        self.height = self.height.max(self.min_height);
+
+        if let Some(max_width) = self.max_width {
+            if max_width < self.min_width {
+                self.max_width = Some(self.min_width);
+            }
+        }
+
+        if let Some(max_height) = self.max_height {
+            if max_height < self.min_height {
+                self.max_height = Some(self.min_height);
+            }
+        }
+
+        if let Some(max_width) = self.max_width {
+            self.width = self.width.min(max_width);
+        }
+
+        if let Some(max_height) = self.max_height {
+            self.height = self.height.min(max_height);
+        }
+
+        self
+    }
+}
+
 fn default_resizable() -> bool {
     true
 }
@@ -177,6 +217,7 @@ impl ConfigManager {
             Ok(mut config) => {
                 // 确保应用版本始终使用当前编译时的版本
                 config.app.version = env!("CARGO_PKG_VERSION").to_string();
+                config.window = config.window.normalize();
                 config
             },
             Err(_) => {
@@ -395,9 +436,8 @@ impl ConfigManager {
     pub fn update_window_config(window_config: WindowConfig, app_handle: &AppHandle) -> Result<(), String> {
         {
             let mut config = CONFIG.write().unwrap();
-            config.window = window_config;
+            config.window = window_config.normalize();
         }
         Self::save(app_handle)
     }
 }
-

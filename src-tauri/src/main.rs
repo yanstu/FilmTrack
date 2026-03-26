@@ -11,6 +11,22 @@ use filmtrack_lib::{
 };
 use base64::{Engine as _, engine::general_purpose};
 
+fn sanitize_window_size(width: u32, height: u32, min_width: u32, min_height: u32) -> (u32, u32) {
+    let safe_min_width = min_width.max(800);
+    let safe_min_height = min_height.max(600);
+    let recommended_width = 1600u32.max(safe_min_width);
+    let recommended_height = 900u32.max(safe_min_height);
+
+    if width < safe_min_width || height < safe_min_height {
+        return (recommended_width, recommended_height);
+    }
+
+    (
+        width.max(safe_min_width),
+        height.max(safe_min_height)
+    )
+}
+
 /// 验证窗口位置是否有效
 /// 排除Windows系统中的特殊值和异常坐标
 fn is_valid_window_position(x: i32, y: i32) -> bool {
@@ -276,10 +292,17 @@ async fn update_window_config(app: AppHandle, window_config: WindowConfig) -> Re
 #[tauri::command]
 async fn apply_window_size(app: AppHandle, width: u32, height: u32) -> Result<ApiResponse<String>, String> {
     if let Some(window) = app.get_webview_window("main") {
-        let logical_size = LogicalSize::new(width, height);
+        let window_config = ConfigManager::get_window_config();
+        let (safe_width, safe_height) = sanitize_window_size(
+            width,
+            height,
+            window_config.min_width,
+            window_config.min_height
+        );
+        let logical_size = LogicalSize::new(safe_width, safe_height);
         window.set_size(logical_size)
             .map_err(|e| format!("设置窗口大小失败: {}", e))?;
-        Ok(ApiResponse::success("窗口大小已应用".to_string()))
+        Ok(ApiResponse::success(format!("窗口大小已应用: {}x{}", safe_width, safe_height)))
     } else {
         Err("未找到主窗口".to_string())
     }
@@ -355,6 +378,12 @@ async fn save_window_size(app: AppHandle) -> Result<ApiResponse<String>, String>
         
         // 获取当前窗口配置
         let mut window_config = ConfigManager::get_window_config();
+        let (actual_width, actual_height) = sanitize_window_size(
+            actual_width,
+            actual_height,
+            window_config.min_width,
+            window_config.min_height
+        );
         
         // 更新窗口大小为真实大小
         window_config.width = actual_width;
@@ -448,6 +477,12 @@ async fn save_window_state(app: AppHandle) -> Result<ApiResponse<String>, String
         
         // 获取当前窗口配置
         let mut window_config = ConfigManager::get_window_config();
+        let (actual_width, actual_height) = sanitize_window_size(
+            actual_width,
+            actual_height,
+            window_config.min_width,
+            window_config.min_height
+        );
         
         // 更新窗口大小和位置
         window_config.width = actual_width;
@@ -482,10 +517,20 @@ pub fn run() {
             
             // 应用保存的窗口配置
             if let Some(window) = app.get_webview_window("main") {
-                let window_config = ConfigManager::get_window_config();
+                let window_config = ConfigManager::get_window_config().normalize();
+                let (safe_width, safe_height) = sanitize_window_size(
+                    window_config.width,
+                    window_config.height,
+                    window_config.min_width,
+                    window_config.min_height
+                );
+                let min_size = LogicalSize::new(window_config.min_width, window_config.min_height);
+                if let Err(e) = window.set_min_size(Some(min_size)) {
+                    eprintln!("应用最小窗口大小失败: {}", e);
+                }
                 
                 // 应用窗口大小
-                let logical_size = LogicalSize::new(window_config.width, window_config.height);
+                let logical_size = LogicalSize::new(safe_width, safe_height);
                 if let Err(e) = window.set_size(logical_size) {
                     eprintln!("应用窗口大小失败: {}", e);
                 }
@@ -520,12 +565,6 @@ pub fn run() {
                     if let Err(e) = window.center() {
                         eprintln!("居中窗口失败: {}", e);
                     }
-                }
-                
-                // 应用最小窗口大小
-                let min_size = LogicalSize::new(window_config.min_width, window_config.min_height);
-                if let Err(e) = window.set_min_size(Some(min_size)) {
-                    eprintln!("应用最小窗口大小失败: {}", e);
                 }
                 
                 // 应用最大窗口大小
@@ -645,6 +684,17 @@ pub fn run() {
                                         let actual_height = (logical_size.height as f64 / scale_factor).round() as u32;
                                         
                                         let mut window_config = ConfigManager::get_window_config();
+                                        let (actual_width, actual_height) = sanitize_window_size(
+                                            actual_width,
+                                            actual_height,
+                                            window_config.min_width,
+                                            window_config.min_height
+                                        );
+
+                                        if logical_size.width < window_config.min_width || logical_size.height < window_config.min_height {
+                                            return;
+                                        }
+
                                         // 只更新窗口大小，保持其他设置不变
                                         window_config.width = actual_width;
                                         window_config.height = actual_height;
@@ -759,4 +809,3 @@ pub fn run() {
 fn main() {
     run();
 }
-
