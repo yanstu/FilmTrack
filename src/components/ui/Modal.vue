@@ -28,26 +28,37 @@
           >
             <DialogPanel
               :class="[
-                'w-full transform overflow-hidden rounded-2xl bg-white backdrop-blur-xl border border-gray-200/50 p-6 text-left align-middle shadow-2xl transition-all',
+                'w-full max-h-[min(92vh,960px)] transform overflow-hidden rounded-2xl bg-white backdrop-blur-xl border border-gray-200/50 text-left align-middle shadow-2xl transition-all flex flex-col',
                 props.large ? 'max-w-4xl' : 'max-w-md',
+                props.panelClass,
               ]"
             >
-              <!-- 标题 -->
-              <DialogTitle
-                as="h3"
-                class="text-lg font-semibold leading-6 text-gray-900 mb-4 flex items-center"
+              <div
+                :class="[
+                  'flex items-center border-b border-gray-100 px-6 py-5',
+                  !title && !iconComponent ? 'hidden' : '',
+                ]"
               >
-                <component
-                  :is="iconComponent"
-                  v-if="iconComponent"
-                  :class="iconClass"
-                  class="mr-3 w-5 h-5"
-                />
-                {{ title }}
-              </DialogTitle>
+                <DialogTitle
+                  as="h3"
+                  class="text-lg font-semibold leading-6 text-gray-900 flex items-center"
+                >
+                  <component
+                    :is="iconComponent"
+                    v-if="iconComponent"
+                    :class="iconClass"
+                    class="mr-3 w-5 h-5"
+                  />
+                  {{ title }}
+                </DialogTitle>
+              </div>
 
-              <!-- 内容 -->
-              <div class="mt-2">
+              <div
+                :class="[
+                  'min-h-0 flex-1 overflow-y-auto px-6 py-5',
+                  props.contentClass,
+                ]"
+              >
                 <slot name="content">
                   <p class="text-sm text-gray-600 leading-relaxed">
                     {{ message }}
@@ -55,8 +66,12 @@
                 </slot>
               </div>
 
-              <!-- 按钮 -->
-              <div class="mt-6 flex justify-end space-x-3">
+              <div
+                :class="[
+                  'flex shrink-0 justify-end space-x-3 border-t border-gray-100 bg-white px-6 py-4',
+                  props.footerClass,
+                ]"
+              >
                 <button
                   v-if="showCancel"
                   type="button"
@@ -176,7 +191,6 @@ const handleConfirm = () => {
 };
 
 const handleCancel = () => {
-  // emit("cancel");
-  emit("close");
+  emit("cancel");
 };
 </script>

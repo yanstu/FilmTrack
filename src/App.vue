@@ -34,7 +34,7 @@
         :confirm-text="modalState.confirmText"
         :cancel-text="modalState.cancelText"
         :show-cancel="modalState.showCancel"
-        @close="modalService.close"
+        @close="handleModalClose"
         @confirm="modalService.confirm"
         @cancel="modalService.cancel"
       />
@@ -43,8 +43,11 @@
       <SettingsModal
         v-if="settingsVisible"
         :is-open="settingsVisible"
+        :is-checking-update="isCheckingUpdate"
+        :update-check-notice="updateCheckNotice"
         @close="settingsVisible = false"
         @save="handleSettingsSave"
+        @check-update="handleCheckForUpdate"
       />
 
       <!-- 更新模态框 -->
@@ -71,7 +74,7 @@ import Navigation from './components/common/Navigation.vue';
 import LoadingOverlay from './components/common/LoadingOverlay.vue';
 import ErrorToast from './components/common/ErrorToast.vue';
 import Modal from './components/ui/Modal.vue';
-import type { UpdateCheckResult, AppSettings } from './types';
+import type { UpdateCheckResult, AppSettings, UpdateCheckNotice } from './types';
 import { trackAppLaunch } from './services/analytics';
 
 const SettingsModal = defineAsyncComponent({
@@ -167,16 +170,29 @@ const settingsVisible = ref(false);
 // 更新相关
 const updateModalVisible = ref(false);
 const updateInfo = ref<UpdateCheckResult | null>(null);
+const isCheckingUpdate = ref(false);
+const updateCheckNotice = ref<UpdateCheckNotice | null>(null);
 let unlistenNavigateToRecord: (() => void) | null = null;
 let updateService: null | {
   setUpdateCallback: (callback: (result: UpdateCheckResult) => void) => void;
   initUpdateListener: () => Promise<void>;
+  checkForUpdate: () => Promise<UpdateCheckResult>;
 } = null;
 let hasTrackedAppLaunch = false;
 let analyticsPromptHandled = false;
 
 const handleOpenSettings = () => {
+  updateCheckNotice.value = null;
   settingsVisible.value = true;
+};
+
+const handleModalClose = () => {
+  if (modalState.value.type === 'confirm' && modalState.value.showCancel) {
+    modalService.cancel();
+    return;
+  }
+
+  modalService.close();
 };
 
 const ensureAnalyticsConsent = () => {
@@ -222,6 +238,7 @@ const triggerAppLaunchAnalytics = async () => {
 const handleSettingsSave = (settings: AppSettings) => {
   appStore.updateSettings(settings);
   settingsVisible.value = false;
+  updateCheckNotice.value = null;
 };
 
 // 处理更新
@@ -235,6 +252,37 @@ const handleUpdate = async () => {
   } catch (error) {
     console.error('处理更新失败:', error);
     appStore.modalService.showError('更新失败', `处理更新失败: ${error}`);
+  }
+};
+
+const handleCheckForUpdate = async () => {
+  if (!updateService || isCheckingUpdate.value) {
+    return;
+  }
+
+  try {
+    isCheckingUpdate.value = true;
+    const result = await updateService.checkForUpdate();
+
+    if (result.has_update) {
+      updateCheckNotice.value = null;
+      updateInfo.value = result;
+      updateModalVisible.value = true;
+      return;
+    }
+
+    updateCheckNotice.value = {
+      type: 'success',
+      message: '当前已经是最新版本。'
+    };
+  } catch (error) {
+    console.error('手动检查更新失败:', error);
+    updateCheckNotice.value = {
+      type: 'error',
+      message: `无法完成更新检查：${error}`
+    };
+  } finally {
+    isCheckingUpdate.value = false;
   }
 };
 

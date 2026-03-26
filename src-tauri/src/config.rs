@@ -6,6 +6,9 @@ use std::fs;
 use std::path::PathBuf;
 use chrono::{DateTime, Utc};
 
+const DEFAULT_DOUBAN_REQUEST_INTERVAL_MS: u64 = 700;
+const LEGACY_DOUBAN_REQUEST_INTERVAL_MS: u64 = 1500;
+
 /// 应用配置结构体
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
@@ -50,6 +53,16 @@ pub struct ScraperConfig {
     
     /// 用户代理
     pub user_agent: String,
+}
+
+impl ScraperConfig {
+    pub fn normalize(mut self) -> Self {
+        if self.request_interval_ms == 0 || self.request_interval_ms == LEGACY_DOUBAN_REQUEST_INTERVAL_MS {
+            self.request_interval_ms = DEFAULT_DOUBAN_REQUEST_INTERVAL_MS;
+        }
+
+        self
+    }
 }
 
 /// 应用信息
@@ -171,7 +184,7 @@ impl Default for AppConfig {
                 dir_name: "cache".to_string(),
             },
             scraper: ScraperConfig {
-                request_interval_ms: 1500,
+                request_interval_ms: DEFAULT_DOUBAN_REQUEST_INTERVAL_MS,
                 user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36".to_string(),
             },
             app: AppInfo {
@@ -217,6 +230,7 @@ impl ConfigManager {
             Ok(mut config) => {
                 // 确保应用版本始终使用当前编译时的版本
                 config.app.version = env!("CARGO_PKG_VERSION").to_string();
+                config.scraper = config.scraper.normalize();
                 config.window = config.window.normalize();
                 config
             },
@@ -393,7 +407,11 @@ impl ConfigManager {
     pub fn update(new_config: AppConfig, app_handle: &AppHandle) -> Result<(), String> {
         {
             let mut config = CONFIG.write().unwrap();
-            *config = new_config;
+            *config = AppConfig {
+                scraper: new_config.scraper.normalize(),
+                window: new_config.window.normalize(),
+                ..new_config
+            };
         }
         Self::save(app_handle)
     }

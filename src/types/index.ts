@@ -435,13 +435,19 @@ export interface UpdateCheckResult {
   publish_date?: string;
 }
 
+export interface UpdateCheckNotice {
+  type: 'success' | 'error';
+  message: string;
+}
+
 // ==================== API 相关类型 ====================
 
 /** 请求队列项类型 */
 export interface QueuedRequest<T = unknown> {
+  key: string;
   request: () => Promise<T>;
   resolve: (value: T) => void;
-  reject: (error: Error) => void;
+  reject: (error: unknown) => void;
 }
 
 /** 缓存项类型 */

@@ -3,28 +3,31 @@ import { useRouter } from 'vue-router';
 import { tmdbAPI } from '../../../utils/api';
 import type { Movie } from '../../../types';
 import { getWatchProgressSummary } from '../../../utils/seasonProgress';
+import { getMovieHistoryDate, parseHistoryDate } from '../../../utils/historyDate';
+
+export function groupMoviesByHistoryDate(movies: Movie[]) {
+  const groups: Record<string, Movie[]> = {};
+
+  movies.forEach(movie => {
+    const date = getMovieHistoryDate(movie);
+    if (!groups[date]) {
+      groups[date] = [];
+    }
+    groups[date].push(movie);
+  });
+
+  return Object.keys(groups)
+    .sort((a, b) => parseHistoryDate(b).getTime() - parseHistoryDate(a).getTime())
+    .map(date => ({
+      date,
+      items: groups[date]
+    }));
+}
 
 export function useHistoryView(movies: { value: Movie[] }) {
   const router = useRouter();
 
-  const groupedMovies = computed(() => {
-    const groups: Record<string, Movie[]> = {};
-
-    movies.value.forEach(movie => {
-      const date = new Date(movie.date_updated).toDateString();
-      if (!groups[date]) {
-        groups[date] = [];
-      }
-      groups[date].push(movie);
-    });
-
-    return Object.keys(groups)
-      .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())
-      .map(date => ({
-        date,
-        items: groups[date]
-      }));
-  });
+  const groupedMovies = computed(() => groupMoviesByHistoryDate(movies.value));
 
   const navigateToDetail = (id: string) => {
     router.push({ name: 'Detail', params: { id } });
@@ -38,7 +41,7 @@ export function useHistoryView(movies: { value: Movie[] }) {
   const getWatchProgress = (movie: Movie) => getWatchProgressSummary(movie).percentage;
 
   const formatGroupDate = (dateString: string) => {
-    const date = new Date(dateString);
+    const date = parseHistoryDate(dateString);
     const today = new Date();
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);

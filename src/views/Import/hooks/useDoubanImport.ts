@@ -51,6 +51,13 @@ type MatchedDetail = {
   score: number;
 };
 
+type RankedCandidate = {
+  mediaType: MediaType;
+  result: TMDbMovie;
+  strategy: string;
+  score: number;
+};
+
 type ImportOperation =
   | { kind: 'skip'; message: string }
   | { kind: 'merge'; payload: UpdateMovieForm; message: string; logType?: ImportLog['type'] }
@@ -59,6 +66,8 @@ type ImportOperation =
 const MATCH_SCORE_THRESHOLD = 0.45;
 const HIGH_CONFIDENCE_SCORE = 0.82;
 const SEARCH_RESULT_LIMIT = 5;
+const STRONG_STRATEGY_LIMIT = 3;
+const DETAIL_FETCH_LIMIT = 2;
 
 function createEmptyImportProgress(): ImportProgress {
   return {
@@ -334,10 +343,21 @@ async function matchTmdbRecord(
     ? ['movie', 'tv']
     : ['tv', 'movie'];
 
-  let bestMatch: MatchedDetail | null = null;
+  const rankedCandidates: RankedCandidate[] = [];
+  const seenCandidateIds = new Set<string>();
+  let bestCandidateScore = 0;
+  let shouldStopSearch = false;
 
-  for (const mediaType of preferredTypes) {
-    for (const strategy of strategies) {
+  for (let strategyIndex = 0; strategyIndex < strategies.length; strategyIndex++) {
+    if (shouldStopSearch) {
+      break;
+    }
+
+    const strategy = strategies[strategyIndex];
+    const allowCrossTypeFallback = strategyIndex < STRONG_STRATEGY_LIMIT;
+    const mediaTypes = allowCrossTypeFallback ? preferredTypes : [preferredTypes[0]];
+
+    for (const mediaType of mediaTypes) {
       const candidates = await fetchSearchCandidates(mediaType, strategy);
 
       if (candidates.length === 0) {
@@ -355,29 +375,43 @@ async function matchTmdbRecord(
           continue;
         }
 
-        if (!bestMatch || score > bestMatch.score) {
-          const detail = await fetchMatchedDetail(mediaType, result);
-          if (!detail) {
-            continue;
+        const candidateKey = `${mediaType}:${result.id}`;
+        const existingIndex = rankedCandidates.findIndex(candidate => candidate.mediaType === mediaType && candidate.result.id === result.id);
+
+        if (existingIndex >= 0) {
+          if (score > rankedCandidates[existingIndex].score) {
+            rankedCandidates[existingIndex] = {
+              mediaType,
+              result,
+              strategy,
+              score,
+            };
+            bestCandidateScore = Math.max(bestCandidateScore, score);
           }
-
-          bestMatch = {
-            mediaType,
-            detail,
-            result,
-            strategy,
-            score,
-          };
+          continue;
         }
 
-        if (bestMatch && bestMatch.score >= HIGH_CONFIDENCE_SCORE) {
-          return bestMatch;
+        if (seenCandidateIds.has(candidateKey)) {
+          continue;
         }
+
+        seenCandidateIds.add(candidateKey);
+        rankedCandidates.push({
+          mediaType,
+          result,
+          strategy,
+          score,
+        });
+        bestCandidateScore = Math.max(bestCandidateScore, score);
       }
+    }
+
+    if (bestCandidateScore >= HIGH_CONFIDENCE_SCORE) {
+      shouldStopSearch = true;
     }
   }
 
-  if (!bestMatch) {
+  if (rankedCandidates.length === 0) {
     await addLog(
       'warning',
       `TMDb未命中: "${movie.title}" - 已尝试 ${strategies.length} 个搜索策略与跨类型兜底`
@@ -385,10 +419,36 @@ async function matchTmdbRecord(
     return null;
   }
 
-  if (bestMatch.score < MATCH_SCORE_THRESHOLD) {
+  rankedCandidates.sort((left, right) => right.score - left.score);
+
+  const finalists = rankedCandidates.slice(0, DETAIL_FETCH_LIMIT);
+  let bestMatch: MatchedDetail | null = null;
+
+  for (const finalist of finalists) {
+    const detail = await fetchMatchedDetail(finalist.mediaType, finalist.result);
+    if (!detail) {
+      continue;
+    }
+
+    bestMatch = {
+      mediaType: finalist.mediaType,
+      detail,
+      result: finalist.result,
+      strategy: finalist.strategy,
+      score: finalist.score,
+    };
+
+    if (finalist.score >= HIGH_CONFIDENCE_SCORE) {
+      return bestMatch;
+    }
+
+    break;
+  }
+
+  if (!bestMatch) {
     await addLog(
       'warning',
-      `TMDb低置信度匹配被放弃: "${movie.title}" -> "${formatMatchedTitle(bestMatch.detail)}" (score=${bestMatch.score.toFixed(2)})`
+      `TMDb详情获取失败: "${movie.title}" - 已找到候选结果但无法获取最终详情`
     );
     return null;
   }
@@ -761,3 +821,7 @@ export function useDoubanImport() {
     updateImportSettings,
   };
 }
+
+export const __doubanImportInternals = {
+  matchTmdbRecord,
+};

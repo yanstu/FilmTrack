@@ -13,15 +13,15 @@ interface UmamiPayload {
   type: 'event';
   payload: {
     hostname: string;
-      language: string;
-      referrer: string;
-      screen: string;
-      title: string;
-      url: string;
-      website: string;
-      id: string;
-      name: string;
-      data?: Record<string, string>;
+    language: string;
+    referrer: string;
+    screen: string;
+    title: string;
+    url: string;
+    website: string;
+    id: string;
+    name?: string;
+    data?: Record<string, string>;
   };
 }
 
@@ -76,31 +76,13 @@ async function buildEventData(): Promise<Record<string, string>> {
   };
 }
 
-export async function trackAppLaunch(settings: AppSettings): Promise<void> {
-  if (!settings.usageAnalyticsEnabled) {
-    return;
-  }
-
-  const payload: UmamiPayload = {
-    type: 'event',
-    payload: {
-      website: UMAMI_WEBSITE_ID,
-      hostname: UMAMI_HOST,
-      url: UMAMI_URL,
-      title: 'FilmTrack Desktop',
-      id: getSessionId(),
-      name: 'app_launch',
-      referrer: '',
-      language: getLanguage(),
-      screen: getScreenSize(),
-      data: await buildEventData()
-    }
-  };
-
+async function sendUmamiPayload(payload: UmamiPayload, appVersion: string): Promise<void> {
   const response = await fetch(UMAMI_ENDPOINT, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json'
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+      'User-Agent': `FilmTrack/${appVersion} (Tauri Desktop)`
     },
     body: JSON.stringify(payload)
   });
@@ -108,4 +90,47 @@ export async function trackAppLaunch(settings: AppSettings): Promise<void> {
   if (!response.ok) {
     throw new Error(`统计上报失败: ${response.status}`);
   }
+}
+
+export async function trackAppLaunch(settings: AppSettings): Promise<void> {
+  if (!settings.usageAnalyticsEnabled) {
+    return;
+  }
+
+  const data = await buildEventData();
+  const appVersion = data.appVersion || 'unknown';
+  const sessionId = getSessionId();
+
+  const pageviewPayload: UmamiPayload = {
+    type: 'event',
+    payload: {
+      website: UMAMI_WEBSITE_ID,
+      hostname: UMAMI_HOST,
+      url: '/',
+      title: 'FilmTrack Desktop',
+      id: sessionId,
+      referrer: '',
+      language: getLanguage(),
+      screen: getScreenSize()
+    }
+  };
+
+  const appLaunchPayload: UmamiPayload = {
+    type: 'event',
+    payload: {
+      website: UMAMI_WEBSITE_ID,
+      hostname: UMAMI_HOST,
+      url: UMAMI_URL,
+      title: 'FilmTrack Desktop',
+      id: sessionId,
+      name: 'app_launch',
+      referrer: '',
+      language: getLanguage(),
+      screen: getScreenSize(),
+      data
+    }
+  };
+
+  await sendUmamiPayload(pageviewPayload, appVersion);
+  await sendUmamiPayload(appLaunchPayload, appVersion);
 }

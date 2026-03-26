@@ -14,6 +14,7 @@ type MovieRow = DatabaseRow & Partial<Movie> & {
   tags?: string | null
   seasons_data?: string | null
   date_updated?: string | null
+  history_date?: string | null
 }
 
 /**
@@ -132,6 +133,53 @@ export class MovieDAO {
       return { success: true, data: movies }
     } catch (error) {
       return { success: false, error: `获取电影列表失败: ${error}` }
+    }
+  }
+
+  /**
+   * 获取历史列表
+   * 按观看时间优先排序，回退到首次加入时间和更新时间
+   */
+  static async getHistoryMovies(
+    limit?: number,
+    offset?: number
+  ): Promise<ApiResponse<Movie[]>> {
+    try {
+      const db = await DatabaseConnection.getInstance()
+      let query = `
+        SELECT *,
+          COALESCE(
+            NULLIF(substr(watched_date, 1, 10), ''),
+            NULLIF(substr(date_added, 1, 10), ''),
+            NULLIF(substr(date_updated, 1, 10), '')
+          ) as history_date
+        FROM movies
+        ORDER BY history_date DESC, date_updated DESC
+      `
+      const params: unknown[] = []
+
+      if (limit) {
+        query += ` LIMIT $${params.length + 1}`
+        params.push(limit)
+
+        if (offset) {
+          query += ` OFFSET $${params.length + 1}`
+          params.push(offset)
+        }
+      }
+
+      const result = await db.select(query, params) as MovieRow[]
+      const movies: Movie[] = result.map((row) => ({
+        ...row,
+        watched_date: row.watched_date || row.history_date || row.date_added || row.date_updated || null,
+        genres: DatabaseUtils.parseJsonField<string[]>(row.genres),
+        tags: DatabaseUtils.parseJsonField<string[]>(row.tags),
+        seasons_data: DatabaseUtils.parseJsonField<SeasonsData>(row.seasons_data)
+      } as Movie))
+
+      return { success: true, data: movies }
+    } catch (error) {
+      return { success: false, error: `获取历史列表失败: ${error}` }
     }
   }
 

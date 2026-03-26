@@ -6,7 +6,11 @@ import { MovieDAO } from '../src/services/database/dao/movie.dao.ts'
 import { DatabaseConnection } from '../src/services/database/connection.ts'
 import { DatabaseApiService } from '../src/services/database-api.ts'
 import { DatabaseSchema } from '../src/services/database/schema.ts'
-import { useDoubanImport } from '../src/views/Import/hooks/useDoubanImport.ts'
+import {
+  __doubanImportInternals,
+  useDoubanImport
+} from '../src/views/Import/hooks/useDoubanImport.ts'
+import { groupMoviesByHistoryDate } from '../src/views/History/composables/useHistoryView.ts'
 import {
   buildSeasonsDataFromTmdb,
   getLastAvailableProgress,
@@ -14,6 +18,8 @@ import {
   getWatchProgressSummary,
   normalizeProgressForStatus
 } from '../src/utils/seasonProgress.ts'
+import * as apiModule from '../src/utils/api.ts'
+import { getMovieHistoryDate } from '../src/utils/historyDate.ts'
 
 const originalGetInstance = DatabaseConnection.getInstance
 const originalGetRawInstance = DatabaseConnection.getRawInstance
@@ -23,6 +29,10 @@ const schemaInternals = DatabaseSchema
 const originalEnsureTableStructure = schemaInternals.ensureTableStructure
 const originalEnsureDatabaseBackup = schemaInternals.ensureDatabaseBackup
 const originalSchemaFs = schemaInternals.fs
+const originalSearchMoviesExact = apiModule.tmdbAPI.searchMoviesExact
+const originalSearchTVShowsExact = apiModule.tmdbAPI.searchTVShowsExact
+const originalGetMovieDetails = apiModule.tmdbAPI.getMovieDetails
+const originalGetTVDetails = apiModule.tmdbAPI.getTVDetails
 
 const dbMock = {
   execute: async () => {},
@@ -43,6 +53,10 @@ beforeEach(() => {
   schemaInternals.ensureDatabaseBackup = originalEnsureDatabaseBackup
   schemaInternals.fs = originalSchemaFs
   schemaInternals.initialized = false
+  apiModule.tmdbAPI.searchMoviesExact = originalSearchMoviesExact
+  apiModule.tmdbAPI.searchTVShowsExact = originalSearchTVShowsExact
+  apiModule.tmdbAPI.getMovieDetails = originalGetMovieDetails
+  apiModule.tmdbAPI.getTVDetails = originalGetTVDetails
 })
 
 afterEach(() => {
@@ -57,6 +71,10 @@ afterEach(() => {
   schemaInternals.ensureDatabaseBackup = originalEnsureDatabaseBackup
   schemaInternals.fs = originalSchemaFs
   schemaInternals.initialized = false
+  apiModule.tmdbAPI.searchMoviesExact = originalSearchMoviesExact
+  apiModule.tmdbAPI.searchTVShowsExact = originalSearchTVShowsExact
+  apiModule.tmdbAPI.getMovieDetails = originalGetMovieDetails
+  apiModule.tmdbAPI.getTVDetails = originalGetTVDetails
 })
 
 describe('MovieDAO.existsMovie', () => {
@@ -96,6 +114,53 @@ describe('MovieDAO.existsMovie', () => {
       data: { exists: false }
     })
     assert.equal(called, false)
+  })
+})
+
+describe('MovieDAO.getHistoryMovies', () => {
+  it('按观看日期优先排序，并保留历史时间字段用于前端展示', async () => {
+    let capturedSql = ''
+    let capturedParams = []
+
+    dbMock.select = async (sql, params) => {
+      capturedSql = String(sql)
+      capturedParams = params
+      return [
+        {
+          id: 'movie-1',
+          title: 'Old Movie',
+          type: 'movie',
+          watched_date: '2024-01-10',
+          date_added: '2024-01-10T08:00:00.000Z',
+          date_updated: '2026-03-26T09:00:00.000Z',
+          history_date: '2024-01-10',
+          genres: '[]',
+          tags: '[]',
+          seasons_data: null
+        },
+        {
+          id: 'movie-2',
+          title: 'Recent Movie',
+          type: 'movie',
+          watched_date: null,
+          date_added: '2025-06-12T08:00:00.000Z',
+          date_updated: '2026-03-20T09:00:00.000Z',
+          history_date: '2025-06-12',
+          genres: '[]',
+          tags: '[]',
+          seasons_data: null
+        }
+      ]
+    }
+
+    const result = await MovieDAO.getHistoryMovies(20, 40)
+
+    assert.equal(result.success, true)
+    assert.match(capturedSql, /COALESCE\(/)
+    assert.match(capturedSql, /ORDER BY history_date DESC, date_updated DESC/)
+    assert.deepEqual(capturedParams, [20, 40])
+    assert.equal(result.data[0].watched_date, '2024-01-10')
+    assert.equal(result.data[1].watched_date, '2025-06-12')
   })
 })
 
@@ -328,6 +393,161 @@ describe('useDoubanImport', () => {
     assert.equal(first.importProgress.value.total, 0)
     assert.equal(first.importLogs.value.length, 0)
     assert.equal(first.hasImportSession.value, false)
+  })
+
+  it('TMDb 匹配先筛候选再取详情，避免为每个更高分候选都拉详情', async () => {
+    const searchCalls = []
+    const detailCalls = []
+
+    apiModule.tmdbAPI.searchMoviesExact = async (query) => {
+      searchCalls.push(query)
+      return {
+        success: true,
+        data: {
+          page: 1,
+          total_pages: 1,
+          total_results: 2,
+          results: [
+            {
+              id: 101,
+              title: '星际穿越',
+              original_title: 'Interstellar',
+              media_type: 'movie'
+            },
+            {
+              id: 102,
+              title: '星际迷航',
+              original_title: 'Star Trek',
+              media_type: 'movie'
+            }
+          ]
+        }
+      }
+    }
+    apiModule.tmdbAPI.searchTVShowsExact = async () => ({
+      success: true,
+      data: { page: 1, total_pages: 0, total_results: 0, results: [] }
+    })
+    apiModule.tmdbAPI.getMovieDetails = async (movieId) => {
+      detailCalls.push(movieId)
+      return {
+        success: true,
+        data: {
+          id: movieId,
+          title: movieId === 101 ? '星际穿越' : '星际迷航',
+          original_title: movieId === 101 ? 'Interstellar' : 'Star Trek',
+          overview: '',
+          vote_average: 8.8,
+          genres: [],
+          runtime: 169,
+          release_date: '2014-11-07'
+        }
+      }
+    }
+    apiModule.tmdbAPI.getTVDetails = async () => ({
+      success: false,
+      error: 'unexpected tv detail request'
+    })
+
+    const result = await __doubanImportInternals.matchTmdbRecord(
+      {
+        title: '星际穿越',
+        original_title: 'Interstellar',
+        douban_id: '1',
+        douban_url: '',
+        cover_url: '',
+        rating: 5,
+        watched_date: '2024-01-10',
+        type_: 'movie',
+        tags: []
+      },
+      async () => {},
+      true
+    )
+
+    assert.equal(result?.detail.id, 101)
+    assert.equal(detailCalls.length, 1)
+    assert.ok(searchCalls.length >= 1)
+  })
+})
+
+describe('RequestQueue', () => {
+  it('会复用相同 key 的进行中请求，避免重复打到 TMDb', async () => {
+    const queue = new apiModule.RequestQueue(0, 2)
+    let requestCount = 0
+
+    const request = async () => {
+      requestCount += 1
+      await new Promise(resolve => setTimeout(resolve, 20))
+      return { ok: true }
+    }
+
+    const [first, second] = await Promise.all([
+      queue.add('movie_details_42', request),
+      queue.add('movie_details_42', request)
+    ])
+
+    assert.deepEqual(first, { ok: true })
+    assert.deepEqual(second, { ok: true })
+    assert.equal(requestCount, 1)
+  })
+})
+
+describe('historyDate', () => {
+  it('观看历史日期优先使用 watched_date，其次回退到 date_added 和 date_updated', () => {
+    assert.equal(
+      getMovieHistoryDate({
+        watched_date: '2024-01-10',
+        date_added: '2026-03-26T09:00:00.000Z',
+        date_updated: '2026-03-26T09:00:00.000Z'
+      }),
+      '2024-01-10'
+    )
+
+    assert.equal(
+      getMovieHistoryDate({
+        watched_date: null,
+        date_added: '2024-03-01T18:00:00.000Z',
+        date_updated: '2026-03-26T09:00:00.000Z'
+      }),
+      '2024-03-01'
+    )
+  })
+})
+
+describe('useHistoryView', () => {
+  it('按观看时间分组，而不是按更新时间把导入记录归到今天', () => {
+    const groupedMovies = groupMoviesByHistoryDate([
+      {
+        id: 'a',
+        title: 'Movie A',
+        type: 'movie',
+        genres: [],
+        vote_average: 0,
+        status: 'completed',
+        watched_date: '2024-01-10',
+        date_added: '2024-01-10T08:00:00.000Z',
+        date_updated: '2026-03-26T08:00:00.000Z',
+        watch_count: 1
+      },
+      {
+        id: 'b',
+        title: 'Movie B',
+        type: 'movie',
+        genres: [],
+        vote_average: 0,
+        status: 'completed',
+        watched_date: null,
+        date_added: '2024-01-09T08:00:00.000Z',
+        date_updated: '2026-03-26T08:00:00.000Z',
+        watch_count: 1
+      }
+    ])
+
+    assert.deepEqual(
+      groupedMovies.map(group => group.date),
+      ['2024-01-10', '2024-01-09']
+    )
   })
 })
 

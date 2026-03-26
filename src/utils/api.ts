@@ -47,57 +47,98 @@ const tmdbClient = axios.create({
 // ==================== TMDb API 请求队列 ====================
 
 // API请求队列
-class RequestQueue {
-  private queue: Array<() => Promise<unknown>> = [];
+export class RequestQueue {
+  private queue: Array<QueuedRequest> = [];
   private processing = false;
   private requestInterval = 1000; // 请求间隔，默认1秒
+  private maxConcurrent = 2;
+  private activeCount = 0;
+  private lastRequestStartedAt = 0;
+  private pendingRequests = new Map<string, Promise<unknown>>();
 
-  constructor(interval?: number) {
+  constructor(interval?: number, maxConcurrent = 2) {
     if (interval) {
       this.requestInterval = interval;
     }
+    this.maxConcurrent = Math.max(1, maxConcurrent);
   }
 
   // 添加请求到队列
-  public add<T>(request: () => Promise<T>): Promise<T> {
-    return new Promise((resolve, reject) => {
-      this.queue.push(async () => {
-        try {
-          const result = await request();
-          resolve(result);
-          return result;
-        } catch (error) {
-          reject(error);
-          throw error;
-        }
+  public add<T>(key: string, request: () => Promise<T>): Promise<T> {
+    const pendingRequest = this.pendingRequests.get(key);
+    if (pendingRequest) {
+      return pendingRequest as Promise<T>;
+    }
+
+    const wrappedPromise = new Promise<T>((resolve, reject) => {
+      this.queue.push({
+        key,
+        request,
+        resolve,
+        reject,
       });
 
       if (!this.processing) {
-        this.processQueue();
+        void this.processQueue();
+      }
+    }).finally(() => {
+      if (this.pendingRequests.get(key) === wrappedPromise) {
+        this.pendingRequests.delete(key);
       }
     });
+
+    this.pendingRequests.set(key, wrappedPromise);
+    return wrappedPromise;
+  }
+
+  private async waitForStartSlot(): Promise<void> {
+    const elapsed = Date.now() - this.lastRequestStartedAt;
+    const waitMs = Math.max(0, this.requestInterval - elapsed);
+
+    if (waitMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+    }
+
+    this.lastRequestStartedAt = Date.now();
   }
 
   // 处理队列
   private async processQueue() {
-    if (this.queue.length === 0) {
-      this.processing = false;
+    if (this.processing) {
       return;
     }
 
     this.processing = true;
-    const request = this.queue.shift();
 
-    if (request) {
-      try {
-        await request();
-      } catch (error) {
-        console.error('请求执行失败:', error);
+    while (this.queue.length > 0 || this.activeCount > 0) {
+      while (this.activeCount < this.maxConcurrent && this.queue.length > 0) {
+        const queuedRequest = this.queue.shift();
+        if (!queuedRequest) {
+          break;
+        }
+
+        await this.waitForStartSlot();
+        this.activeCount++;
+        void this.executeRequest(queuedRequest);
       }
 
-      // 等待指定时间后处理下一个请求
-      await new Promise((resolve) => setTimeout(resolve, this.requestInterval));
-      this.processQueue();
+      if (this.activeCount > 0 && (this.activeCount >= this.maxConcurrent || this.queue.length === 0)) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+    }
+
+    this.processing = false;
+  }
+
+  private async executeRequest<T>(queuedRequest: QueuedRequest<T>): Promise<void> {
+    try {
+      const result = await queuedRequest.request();
+      queuedRequest.resolve(result);
+    } catch (error) {
+      console.error('请求执行失败:', error);
+      queuedRequest.reject(error);
+    } finally {
+      this.activeCount--;
     }
   }
 
@@ -143,7 +184,7 @@ export const tmdbAPI = {
       return cachedResult;
     }
 
-    return tmdbQueue.add(async () => {
+    return tmdbQueue.add(cacheKey, async () => {
       try {
         const response = await tmdbClient.get(endpoint, { params });
         const result = { success: true, data: response.data };
@@ -399,7 +440,7 @@ export const tmdbAPI = {
       return cachedResult;
     }
 
-    return tmdbQueue.add(async () => {
+    return tmdbQueue.add(cacheKey, async () => {
       try {
         const endpoint = `/${mediaType}/${tmdbId}/images`;
         const response = await tmdbClient.get(endpoint, {

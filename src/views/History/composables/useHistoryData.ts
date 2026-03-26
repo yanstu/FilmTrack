@@ -29,9 +29,9 @@ export function useHistoryData() {
     try {
       const offset = (page - 1) * pageSize;
       const requests: [
-        Promise<Awaited<ReturnType<typeof databaseAPI.getMovies>>>,
+        Promise<Awaited<ReturnType<typeof databaseAPI.getHistoryMovies>>>,
         Promise<Awaited<ReturnType<typeof databaseAPI.countMovies>>>?
-      ] = [databaseAPI.getMovies(undefined, pageSize, offset)];
+      ] = [databaseAPI.getHistoryMovies(pageSize, offset)];
 
       const shouldFetchTotal = cachedTotalCount === null || page === 1;
       if (shouldFetchTotal) {

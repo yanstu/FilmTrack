@@ -134,7 +134,7 @@ export function useHomeData() {
       loadingHistory.value = true;
       historyError.value = '';
 
-      const result = await databaseAPI.getMovies(undefined, 12, 0);
+      const result = await databaseAPI.getHistoryMovies(12, 0);
       if (result.success && result.data) {
         recentHistory.value = result.data;
       } else {

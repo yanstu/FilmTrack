@@ -35,53 +35,63 @@
           </button>
         </div>
         
-        <div v-else class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
-          <div class="bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg p-4 text-white">
-            <div class="flex items-center">
-              <FilmIcon class="w-8 h-8 mr-3" />
+        <div v-else class="grid grid-cols-1 gap-6 md:grid-cols-3 lg:grid-cols-5">
+          <div class="stats-card stats-card-blue">
+            <div class="stats-card-content">
+              <div class="stats-card-icon-wrap">
+                <FilmIcon class="stats-card-icon" />
+              </div>
               <div>
-                <p class="text-blue-100 text-sm">总电影数</p>
-                <p class="text-2xl font-bold">{{ statistics.total_movies }}</p>
+                <p class="stats-card-label">总电影数</p>
+                <p class="stats-card-value">{{ statistics.total_movies }}</p>
               </div>
             </div>
           </div>
           
-          <div class="bg-gradient-to-r from-green-500 to-green-600 rounded-lg p-4 text-white">
-            <div class="flex items-center">
-              <CheckCircleIcon class="w-8 h-8 mr-3" />
+          <div class="stats-card stats-card-green">
+            <div class="stats-card-content">
+              <div class="stats-card-icon-wrap">
+                <CheckCircleIcon class="stats-card-icon" />
+              </div>
               <div>
-                <p class="text-green-100 text-sm">已完成</p>
-                <p class="text-2xl font-bold">{{ statistics.completed_movies }}</p>
+                <p class="stats-card-label">已完成</p>
+                <p class="stats-card-value">{{ statistics.completed_movies }}</p>
               </div>
             </div>
           </div>
           
-          <div class="bg-gradient-to-r from-yellow-500 to-yellow-600 rounded-lg p-4 text-white">
-            <div class="flex items-center">
-              <StarIcon class="w-8 h-8 mr-3" />
+          <div class="stats-card stats-card-yellow">
+            <div class="stats-card-content">
+              <div class="stats-card-icon-wrap">
+                <StarIcon class="stats-card-icon" />
+              </div>
               <div>
-                <p class="text-yellow-100 text-sm">平均评分</p>
-                <p class="text-2xl font-bold">{{ statistics.average_rating > 0 ? formatRating(statistics.average_rating / 2) : '0.0' }}</p>
+                <p class="stats-card-label">平均评分</p>
+                <p class="stats-card-value">{{ statistics.average_rating > 0 ? formatRating(statistics.average_rating / 2) : '0.0' }}</p>
               </div>
             </div>
           </div>
           
-          <div class="bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-lg p-4 text-white">
-            <div class="flex items-center">
-              <CalendarIcon class="w-8 h-8 mr-3" />
+          <div class="stats-card stats-card-indigo">
+            <div class="stats-card-content">
+              <div class="stats-card-icon-wrap">
+                <CalendarIcon class="stats-card-icon" />
+              </div>
               <div>
-                <p class="text-indigo-100 text-sm">本月观看</p>
-                <p class="text-2xl font-bold">{{ statistics.movies_this_month }}</p>
+                <p class="stats-card-label">本月观看</p>
+                <p class="stats-card-value">{{ statistics.movies_this_month }}</p>
               </div>
             </div>
           </div>
           
-          <div class="bg-gradient-to-r from-pink-500 to-pink-600 rounded-lg p-4 text-white">
-            <div class="flex items-center">
-              <TrendingUpIcon class="w-8 h-8 mr-3" />
+          <div class="stats-card stats-card-pink">
+            <div class="stats-card-content">
+              <div class="stats-card-icon-wrap">
+                <TrendingUpIcon class="stats-card-icon" />
+              </div>
               <div>
-                <p class="text-pink-100 text-sm">今年观看</p>
-                <p class="text-2xl font-bold">{{ statistics.movies_this_year }}</p>
+                <p class="stats-card-label">今年观看</p>
+                <p class="stats-card-value">{{ statistics.movies_this_year }}</p>
               </div>
             </div>
           </div>
@@ -386,5 +396,127 @@ onMounted(() => {
   height: -webkit-fill-available;
   flex-direction: column;
   justify-content: space-around
+}
+
+.stats-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1rem;
+  padding: 1rem;
+  color: #fff;
+  box-shadow: 0 14px 32px -22px rgba(15, 23, 42, 0.8);
+  transition:
+    transform 220ms ease,
+    box-shadow 220ms ease,
+    filter 220ms ease;
+}
+
+.stats-card::before {
+  content: '';
+  position: absolute;
+  inset: auto -25% -65% auto;
+  width: 8rem;
+  height: 8rem;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.18);
+  filter: blur(6px);
+  transition:
+    transform 220ms ease,
+    opacity 220ms ease;
+}
+
+.stats-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.18), transparent 45%);
+  opacity: 0;
+  transition: opacity 220ms ease;
+}
+
+.stats-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 22px 40px -24px rgba(15, 23, 42, 0.65);
+  filter: saturate(1.06);
+}
+
+.stats-card:hover::before {
+  transform: scale(1.18);
+}
+
+.stats-card:hover::after {
+  opacity: 1;
+}
+
+.stats-card-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+}
+
+.stats-card-icon-wrap {
+  display: inline-flex;
+  margin-right: 0.75rem;
+  border-radius: 9999px;
+  padding: 0.7rem;
+  background: rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(8px);
+  transition:
+    transform 220ms ease,
+    background-color 220ms ease,
+    box-shadow 220ms ease;
+}
+
+.stats-card:hover .stats-card-icon-wrap {
+  transform: scale(1.14) rotate(-4deg);
+  background: rgba(255, 255, 255, 0.22);
+  box-shadow: 0 10px 24px -16px rgba(255, 255, 255, 0.9);
+}
+
+.stats-card-icon {
+  width: 2rem;
+  height: 2rem;
+  transition: transform 220ms ease;
+}
+
+.stats-card:hover .stats-card-icon {
+  transform: scale(1.1);
+}
+
+.stats-card-label {
+  font-size: 0.875rem;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.stats-card-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  transition: transform 220ms ease;
+}
+
+.stats-card:hover .stats-card-value {
+  transform: translateY(-1px);
+}
+
+.stats-card-blue {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+}
+
+.stats-card-green {
+  background: linear-gradient(135deg, #16a34a, #15803d);
+}
+
+.stats-card-yellow {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+.stats-card-indigo {
+  background: linear-gradient(135deg, #6366f1, #4338ca);
+}
+
+.stats-card-pink {
+  background: linear-gradient(135deg, #ec4899, #db2777);
 }
 </style>

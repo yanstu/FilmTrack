@@ -60,6 +60,17 @@ export class DatabaseApiService {
   }
 
   /**
+   * 获取历史列表
+   * 按观看日期优先排序
+   */
+  static async getHistoryMovies(
+    limit?: number,
+    offset?: number
+  ): Promise<ApiResponse<Movie[]>> {
+    return MovieDAO.getHistoryMovies(limit, offset);
+  }
+
+  /**
    * 获取电影总数
    * @param status 观看状态
    */
@@ -222,6 +233,7 @@ export const databaseAPI = {
   initDatabase: DatabaseApiService.initDatabase,
   checkExistingMovie: DatabaseApiService.checkExistingMovie,
   getMovies: DatabaseApiService.getMovies,
+  getHistoryMovies: DatabaseApiService.getHistoryMovies,
   countMovies: DatabaseApiService.countMovies,
   addMovie: DatabaseApiService.addMovie,
   updateMovie: DatabaseApiService.updateMovie,
