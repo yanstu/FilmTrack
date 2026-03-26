@@ -181,6 +181,7 @@ function buildSearchStrategies(movie: DoubanMovie, enableTitleCleaning: boolean)
 
 function buildMovieIndexes(movies: Movie[]) {
   const byTmdbId = new Map<number, IndexedMovie>();
+  const byId = new Map<string, IndexedMovie>();
   const byType = new Map<MediaType, IndexedMovie[]>();
 
   for (const type of ['movie', 'tv'] as const) {
@@ -193,6 +194,8 @@ function buildMovieIndexes(movies: Movie[]) {
       normalizedTitle: normalizeTitle(movie.title),
     };
 
+    byId.set(indexedMovie.id, indexedMovie);
+
     if (indexedMovie.tmdb_id) {
       byTmdbId.set(indexedMovie.tmdb_id, indexedMovie);
     }
@@ -203,7 +206,7 @@ function buildMovieIndexes(movies: Movie[]) {
     }
   }
 
-  return { byTmdbId, byType };
+  return { byTmdbId, byId, byType };
 }
 
 function findExistingByTitle(
@@ -230,6 +233,10 @@ function updateIndexes(
   }
 
   if (previousMovie) {
+    indexes.byId.delete(previousMovie.id);
+  }
+
+  if (previousMovie) {
     const previousList = indexes.byType.get(previousMovie.type as MediaType);
     if (previousList) {
       const previousIndex = previousList.findIndex(item => item.id === previousMovie.id);
@@ -248,6 +255,8 @@ function updateIndexes(
     indexes.byTmdbId.set(indexedMovie.tmdb_id, indexedMovie);
   }
 
+  indexes.byId.set(indexedMovie.id, indexedMovie);
+
   const nextList = indexes.byType.get(indexedMovie.type as MediaType);
   if (nextList) {
     const existingIndex = nextList.findIndex(item => item.id === indexedMovie.id);
@@ -264,8 +273,8 @@ async function fetchSearchCandidates(
   strategy: string
 ): Promise<TMDbMovie[]> {
   const searchResult = mediaType === 'movie'
-    ? await tmdbAPI.searchMovies(strategy)
-    : await tmdbAPI.searchTVShows(strategy);
+    ? await tmdbAPI.searchMoviesExact(strategy)
+    : await tmdbAPI.searchTVShowsExact(strategy);
 
   const results = searchResult.data?.results || [];
   return results.slice(0, SEARCH_RESULT_LIMIT);
@@ -658,7 +667,7 @@ export function useDoubanImport() {
             }
 
             if (operation.kind === 'merge') {
-              const existingMovie = localMoviesResponse.data.find(item => item.id === operation.payload.id);
+              const existingMovie = indexes.byId.get(operation.payload.id);
               const result = await databaseAPI.updateMovie(operation.payload);
 
               if (!result.success || !result.data) {

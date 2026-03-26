@@ -166,22 +166,11 @@ export const tmdbAPI = {
   ): Promise<ApiResponse<TMDbResponse<TMDbMovie>>> {
     if (!query) return { success: false, error: '搜索关键词不能为空' };
 
-    // 使用增强的搜索变体生成
     const uniqueStrategies = generateSearchVariants(query);
 
     for (const searchKeyword of uniqueStrategies) {
       try {
-        const cacheKey = `search_movies_${searchKeyword}_${page}`;
-        const result = await this._request(
-          '/search/movie',
-          {
-            query: searchKeyword,
-            page,
-            include_adult: true,
-            language: 'zh-CN'
-          },
-          cacheKey
-        );
+        const result = await this.searchMoviesExact(searchKeyword, page);
 
         if (result.success && result.data?.results && result.data.results.length > 0) {
           return result;
@@ -197,6 +186,25 @@ export const tmdbAPI = {
     };
   },
 
+  async searchMoviesExact(
+    query: string,
+    page = 1
+  ): Promise<ApiResponse<TMDbResponse<TMDbMovie>>> {
+    if (!query) return { success: false, error: '搜索关键词不能为空' };
+
+    const cacheKey = `search_movies_${query}_${page}`;
+    return this._request(
+      '/search/movie',
+      {
+        query,
+        page,
+        include_adult: true,
+        language: 'zh-CN'
+      },
+      cacheKey
+    );
+  },
+
   // 搜索电视剧（增强版）
   async searchTVShows(
     query: string,
@@ -204,22 +212,11 @@ export const tmdbAPI = {
   ): Promise<ApiResponse<TMDbResponse<TMDbMovie>>> {
     if (!query) return { success: false, error: '搜索关键词不能为空' };
 
-    // 使用增强的搜索变体生成
     const uniqueStrategies = generateSearchVariants(query);
 
     for (const searchKeyword of uniqueStrategies) {
       try {
-        const cacheKey = `search_tv_${searchKeyword}_${page}`;
-        const result = await this._request(
-          '/search/tv',
-          {
-            query: searchKeyword,
-            page,
-            include_adult: true,
-            language: 'zh-CN'
-          },
-          cacheKey
-        );
+        const result = await this.searchTVShowsExact(searchKeyword, page);
 
         if (result.success && result.data?.results && result.data.results.length > 0) {
           return result;
@@ -233,6 +230,25 @@ export const tmdbAPI = {
       success: true,
       data: { page: 1, results: [], total_pages: 0, total_results: 0 }
     };
+  },
+
+  async searchTVShowsExact(
+    query: string,
+    page = 1
+  ): Promise<ApiResponse<TMDbResponse<TMDbMovie>>> {
+    if (!query) return { success: false, error: '搜索关键词不能为空' };
+
+    const cacheKey = `search_tv_${query}_${page}`;
+    return this._request(
+      '/search/tv',
+      {
+        query,
+        page,
+        include_adult: true,
+        language: 'zh-CN'
+      },
+      cacheKey
+    );
   },
 
   // 多类型搜索（增强版）

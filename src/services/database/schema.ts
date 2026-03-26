@@ -10,7 +10,7 @@ import { DatabaseConnection } from './connection'
 type Migration = {
   version: number
   name: string
-  up: () => Promise<void>
+  up: (db: Awaited<ReturnType<typeof DatabaseConnection.getRawInstance>>) => Promise<void>
 }
 
 const LATEST_SCHEMA_VERSION = 2
@@ -126,18 +126,17 @@ export class DatabaseSchema {
     {
       version: 1,
       name: 'baseline-schema',
-      up: async () => {
-        await this.ensureBaseTables()
-        await this.ensureBaseColumns()
-        await this.backfillLegacyData()
-        await this.ensureIndexes()
+      up: async (db) => {
+        await this.ensureBaseTables(db)
+        await this.ensureBaseColumns(db)
+        await this.backfillLegacyData(db)
+        await this.ensureIndexes(db)
       }
     },
     {
       version: 2,
       name: 'normalize-defaults',
-      up: async () => {
-        const db = await DatabaseConnection.getInstance()
+      up: async (db) => {
         await db.execute(`
           UPDATE movies SET
             type = COALESCE(type, 'movie'),
@@ -178,7 +177,7 @@ export class DatabaseSchema {
     }
 
     try {
-      const db = await DatabaseConnection.getInstance()
+      const db = await DatabaseConnection.getRawInstance()
 
       try {
         await db.execute('SELECT 1')
@@ -191,13 +190,18 @@ export class DatabaseSchema {
       await this.runPendingMigrations()
       this.initialized = true
     } catch (error) {
+      this.initialized = false
       console.error('数据库表结构初始化失败:', error)
       throw error
     }
   }
 
+  static resetInitializationState(): void {
+    this.initialized = false
+  }
+
   private static async ensureMigrationTable(): Promise<void> {
-    const db = await DatabaseConnection.getInstance()
+    const db = await DatabaseConnection.getRawInstance()
     await db.execute(`
       CREATE TABLE IF NOT EXISTS schema_migrations (
         version INTEGER PRIMARY KEY,
@@ -208,7 +212,7 @@ export class DatabaseSchema {
   }
 
   private static async runPendingMigrations(): Promise<void> {
-    const db = await DatabaseConnection.getInstance()
+    const db = await DatabaseConnection.getRawInstance()
     const appliedVersions = await this.getAppliedVersions()
     const pendingMigrations = this.migrations.filter(
       migration => !appliedVersions.has(migration.version)
@@ -223,7 +227,7 @@ export class DatabaseSchema {
     for (const migration of pendingMigrations) {
       try {
         await db.execute('BEGIN TRANSACTION')
-        await migration.up()
+        await migration.up(db)
         await db.execute(
           'INSERT INTO schema_migrations (version, name, applied_at) VALUES ($1, $2, $3)',
           [migration.version, migration.name, new Date().toISOString()]
@@ -242,7 +246,7 @@ export class DatabaseSchema {
   }
 
   private static async getAppliedVersions(): Promise<Set<number>> {
-    const db = await DatabaseConnection.getInstance()
+    const db = await DatabaseConnection.getRawInstance()
     const result = await db.select(
       'SELECT version FROM schema_migrations ORDER BY version ASC'
     ) as Array<{ version: number | string }>
@@ -250,15 +254,16 @@ export class DatabaseSchema {
     return new Set(result.map(row => Number(row.version)))
   }
 
-  private static async ensureBaseTables(): Promise<void> {
-    const db = await DatabaseConnection.getInstance()
+  private static async ensureBaseTables(
+    db: Awaited<ReturnType<typeof DatabaseConnection.getRawInstance>>
+  ): Promise<void> {
     await db.execute(MOVIES_TABLE_SQL)
     await db.execute(REPLAY_RECORDS_TABLE_SQL)
   }
 
-  private static async ensureBaseColumns(): Promise<void> {
-    const db = await DatabaseConnection.getInstance()
-
+  private static async ensureBaseColumns(
+    db: Awaited<ReturnType<typeof DatabaseConnection.getRawInstance>>
+  ): Promise<void> {
     for (const command of MOVIES_COLUMN_MIGRATIONS) {
       await this.executeIgnoreDuplicate(db, command)
     }
@@ -268,8 +273,9 @@ export class DatabaseSchema {
     }
   }
 
-  private static async backfillLegacyData(): Promise<void> {
-    const db = await DatabaseConnection.getInstance()
+  private static async backfillLegacyData(
+    db: Awaited<ReturnType<typeof DatabaseConnection.getRawInstance>>
+  ): Promise<void> {
     const currentTime = new Date().toISOString()
 
     await db.execute(`
@@ -307,9 +313,9 @@ export class DatabaseSchema {
     `, [currentTime, currentTime])
   }
 
-  private static async ensureIndexes(): Promise<void> {
-    const db = await DatabaseConnection.getInstance()
-
+  private static async ensureIndexes(
+    db: Awaited<ReturnType<typeof DatabaseConnection.getRawInstance>>
+  ): Promise<void> {
     for (const command of INDEX_COMMANDS) {
       await db.execute(command)
     }
@@ -351,7 +357,7 @@ export class DatabaseSchema {
   }
 
   private static async getCurrentSchemaVersion(): Promise<number> {
-    const db = await DatabaseConnection.getInstance()
+    const db = await DatabaseConnection.getRawInstance()
     const result = await db.select(
       'SELECT MAX(version) as version FROM schema_migrations'
     ) as Array<{ version: number | string | null }>
@@ -365,7 +371,7 @@ export class DatabaseSchema {
   }
 
   private static async executeIgnoreDuplicate(
-    db: Awaited<ReturnType<typeof DatabaseConnection.getInstance>>,
+    db: Awaited<ReturnType<typeof DatabaseConnection.getRawInstance>>,
     sql: string
   ): Promise<void> {
     try {

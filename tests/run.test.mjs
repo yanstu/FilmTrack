@@ -14,8 +14,11 @@ import {
 } from '../src/utils/seasonProgress.ts'
 
 const originalGetInstance = DatabaseConnection.getInstance
+const originalGetRawInstance = DatabaseConnection.getRawInstance
+const originalConnect = DatabaseConnection.connect
 const originalExistsMovie = MovieDAO.existsMovie
 const schemaInternals = DatabaseSchema
+const originalEnsureTableStructure = schemaInternals.ensureTableStructure
 const originalEnsureDatabaseBackup = schemaInternals.ensureDatabaseBackup
 const originalSchemaFs = schemaInternals.fs
 
@@ -28,7 +31,12 @@ beforeEach(() => {
   dbMock.execute = async () => {}
   dbMock.select = async () => []
   DatabaseConnection.getInstance = async () => dbMock
+  DatabaseConnection.getRawInstance = async () => dbMock
+  DatabaseConnection.instance = null
+  DatabaseConnection.initialized = false
+  DatabaseConnection.initializationPromise = null
   MovieDAO.existsMovie = originalExistsMovie
+  schemaInternals.ensureTableStructure = originalEnsureTableStructure
   schemaInternals.ensureDatabaseBackup = originalEnsureDatabaseBackup
   schemaInternals.fs = originalSchemaFs
   schemaInternals.initialized = false
@@ -36,7 +44,13 @@ beforeEach(() => {
 
 afterEach(() => {
   DatabaseConnection.getInstance = originalGetInstance
+  DatabaseConnection.getRawInstance = originalGetRawInstance
+  DatabaseConnection.connect = originalConnect
+  DatabaseConnection.instance = null
+  DatabaseConnection.initialized = false
+  DatabaseConnection.initializationPromise = null
   MovieDAO.existsMovie = originalExistsMovie
+  schemaInternals.ensureTableStructure = originalEnsureTableStructure
   schemaInternals.ensureDatabaseBackup = originalEnsureDatabaseBackup
   schemaInternals.fs = originalSchemaFs
   schemaInternals.initialized = false
@@ -208,6 +222,85 @@ describe('DatabaseSchema.ensureTableStructure', () => {
       executeCalls.filter(([sql]) => sql === 'COMMIT').length,
       2
     )
+  })
+
+  it('迁移执行期间复用原始连接，避免再次触发初始化等待', async () => {
+    let rawInstanceCalls = 0
+    let recursiveGetInstanceCalls = 0
+
+    schemaInternals.ensureDatabaseBackup = async () => {}
+    DatabaseConnection.getRawInstance = async () => {
+      rawInstanceCalls += 1
+      return dbMock
+    }
+    DatabaseConnection.getInstance = async () => {
+      recursiveGetInstanceCalls += 1
+      throw new Error('迁移期间不应再次通过 getInstance 取连接')
+    }
+
+    dbMock.select = async (sql) => {
+      if (String(sql).includes('SELECT version FROM schema_migrations')) {
+        return []
+      }
+      return []
+    }
+
+    await DatabaseSchema.ensureTableStructure()
+
+    assert.ok(rawInstanceCalls >= 1)
+    assert.equal(recursiveGetInstanceCalls, 0)
+  })
+})
+
+describe('DatabaseConnection.initialize', () => {
+  it('并发初始化时只建立一次连接并复用同一初始化流程', async () => {
+    let connectCalls = 0
+    let ensureCalls = 0
+
+    DatabaseConnection.getInstance = originalGetInstance
+    DatabaseConnection.getRawInstance = originalGetRawInstance
+    DatabaseConnection.connect = async () => {
+      connectCalls += 1
+      await new Promise(resolve => setTimeout(resolve, 10))
+      return dbMock
+    }
+    schemaInternals.ensureTableStructure = async () => {
+      ensureCalls += 1
+      await new Promise(resolve => setTimeout(resolve, 10))
+      schemaInternals.initialized = true
+    }
+
+    const [db1, db2, db3] = await Promise.all([
+      DatabaseConnection.getInstance(),
+      DatabaseConnection.getInstance(),
+      DatabaseConnection.getInstance()
+    ])
+
+    assert.equal(db1, dbMock)
+    assert.equal(db2, dbMock)
+    assert.equal(db3, dbMock)
+    assert.equal(connectCalls, 1)
+    assert.equal(ensureCalls, 1)
+  })
+
+  it('关闭连接时同步重置 schema 初始化状态', async () => {
+    let closeCalls = 0
+
+    DatabaseConnection.instance = {
+      close: async () => {
+        closeCalls += 1
+      }
+    }
+    DatabaseConnection.initialized = true
+    DatabaseConnection.initializationPromise = null
+    schemaInternals.initialized = true
+
+    await DatabaseConnection.close()
+
+    assert.equal(closeCalls, 1)
+    assert.equal(DatabaseConnection.instance, null)
+    assert.equal(DatabaseConnection.initialized, false)
+    assert.equal(schemaInternals.initialized, false)
   })
 })
 
