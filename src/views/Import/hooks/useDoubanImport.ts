@@ -2,7 +2,7 @@
  * 豆瓣导入功能的 Hook
  */
 
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { useMovieStore } from '../../../stores/movie';
 import { databaseAPI } from '../../../services/database-api';
@@ -59,6 +59,35 @@ type ImportOperation =
 const MATCH_SCORE_THRESHOLD = 0.45;
 const HIGH_CONFIDENCE_SCORE = 0.82;
 const SEARCH_RESULT_LIMIT = 5;
+
+function createEmptyImportProgress(): ImportProgress {
+  return {
+    total: 0,
+    current: 0,
+    success: 0,
+    skipped: 0,
+    failed: 0,
+    processed: 0,
+    matched: 0,
+  };
+}
+
+// 导入状态提升到模块级，避免切换页面后组件重建导致进度丢失
+const doubanUserId = ref('');
+const isImporting = ref(false);
+const importSettings = ref<ImportSettings>({
+  enableTitleCleaning: true,
+  enableTMDbMatching: true,
+});
+const importProgress = ref<ImportProgress>(createEmptyImportProgress());
+const importLogs = ref<ImportLog[]>([]);
+const shouldStop = ref(false);
+const importSessionId = ref<string>('');
+const hasImportSession = computed(() =>
+  isImporting.value ||
+  importProgress.value.total > 0 ||
+  importLogs.value.length > 0
+);
 
 function normalizeTitle(title: string): string {
   return cleanTitle(title)
@@ -548,24 +577,6 @@ function decideImportOperation(
  * 豆瓣导入 Hook
  */
 export function useDoubanImport() {
-  const doubanUserId = ref('');
-  const isImporting = ref(false);
-  const importSettings = ref<ImportSettings>({
-    enableTitleCleaning: true,
-    enableTMDbMatching: true,
-  });
-  const importProgress = ref<ImportProgress>({
-    total: 0,
-    current: 0,
-    success: 0,
-    skipped: 0,
-    failed: 0,
-    processed: 0,
-    matched: 0,
-  });
-  const importLogs = ref<ImportLog[]>([]);
-  const shouldStop = ref(false);
-  const importSessionId = ref<string>('');
   const movieStore = useMovieStore();
 
   const addLog = async (type: ImportLog['type'], message: string) => {
@@ -587,21 +598,24 @@ export function useDoubanImport() {
   };
 
   const resetImport = () => {
-    importProgress.value = {
-      total: 0,
-      current: 0,
-      success: 0,
-      skipped: 0,
-      failed: 0,
-      processed: 0,
-      matched: 0,
-    };
+    importProgress.value = createEmptyImportProgress();
     importLogs.value = [];
     shouldStop.value = false;
     importSessionId.value = new Date()
       .toISOString()
       .replace(/[:.]/g, '-')
       .slice(0, 19);
+  };
+
+  const clearImportSession = () => {
+    if (isImporting.value) {
+      return;
+    }
+
+    importProgress.value = createEmptyImportProgress();
+    importLogs.value = [];
+    shouldStop.value = false;
+    importSessionId.value = '';
   };
 
   const startDoubanImport = async () => {
@@ -737,11 +751,13 @@ export function useDoubanImport() {
   return {
     doubanUserId,
     isImporting,
+    hasImportSession,
     importProgress,
     importLogs,
     importSettings,
     startDoubanImport,
     stopImport,
+    clearImportSession,
     updateImportSettings,
   };
 }

@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict'
 import { afterEach, beforeEach, describe, it } from 'node:test'
+import { createPinia, setActivePinia } from 'pinia'
 
 import { MovieDAO } from '../src/services/database/dao/movie.dao.ts'
 import { DatabaseConnection } from '../src/services/database/connection.ts'
 import { DatabaseApiService } from '../src/services/database-api.ts'
 import { DatabaseSchema } from '../src/services/database/schema.ts'
+import { useDoubanImport } from '../src/views/Import/hooks/useDoubanImport.ts'
 import {
   buildSeasonsDataFromTmdb,
   getLastAvailableProgress,
@@ -28,6 +30,7 @@ const dbMock = {
 }
 
 beforeEach(() => {
+  setActivePinia(createPinia())
   dbMock.execute = async () => {}
   dbMock.select = async () => []
   DatabaseConnection.getInstance = async () => dbMock
@@ -301,6 +304,30 @@ describe('DatabaseConnection.initialize', () => {
     assert.equal(DatabaseConnection.instance, null)
     assert.equal(DatabaseConnection.initialized, false)
     assert.equal(schemaInternals.initialized, false)
+  })
+})
+
+describe('useDoubanImport', () => {
+  it('在多次调用时共享同一份导入状态，支持切页返回继续查看', () => {
+    const first = useDoubanImport()
+    const second = useDoubanImport()
+
+    first.clearImportSession()
+    first.doubanUserId.value = '203503302'
+    first.importProgress.value.total = 120
+    first.importProgress.value.current = 48
+    first.importLogs.value = [{ type: 'info', message: '正在导入第 48 条' }]
+
+    assert.equal(second.doubanUserId.value, '203503302')
+    assert.equal(second.importProgress.value.total, 120)
+    assert.equal(second.importProgress.value.current, 48)
+    assert.equal(second.importLogs.value.length, 1)
+    assert.equal(second.hasImportSession.value, true)
+
+    second.clearImportSession()
+    assert.equal(first.importProgress.value.total, 0)
+    assert.equal(first.importLogs.value.length, 0)
+    assert.equal(first.hasImportSession.value, false)
   })
 })
 

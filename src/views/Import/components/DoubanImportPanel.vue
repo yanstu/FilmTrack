@@ -1,7 +1,7 @@
 <template>
   <div class="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-gray-200/50 mb-8 transform transition-all duration-300 hover:shadow-md animate-card-appear">
     <!-- 导入表单 -->
-    <div v-if="!isImporting">
+    <div v-if="!hasImportSession">
       <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
         <ImportIcon class="mr-2 w-5 h-5 text-blue-600 animate-bounce-subtle" />
         从豆瓣导入
@@ -43,7 +43,7 @@
           导入说明
         </h3>
         <ul class="text-xs text-blue-700 list-disc pl-5 space-y-1.5">
-          <li class="hover:text-blue-800 transition-colors duration-200">导入过程中请勿关闭应用或切换界面</li>
+          <li class="hover:text-blue-800 transition-colors duration-200">导入过程中请勿关闭应用；切换页面后返回仍可继续查看进度</li>
           <li class="hover:text-blue-800 transition-colors duration-200">导入时会自动匹配TMDb数据，以获取更完整的影视信息</li>
           <li class="hover:text-blue-800 transition-colors duration-200">导入的评分、观看的季数、观看日期和评语将保留，其他信息将使用TMDb数据</li>
         </ul>
@@ -53,9 +53,19 @@
     <!-- 导入进度 -->
     <div v-else>
       <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-        <LoaderIcon class="mr-2 w-5 h-5 text-blue-600 animate-spin" />
-        导入进度
+        <LoaderIcon
+          class="mr-2 w-5 h-5 text-blue-600"
+          :class="{ 'animate-spin': isImporting }"
+        />
+        {{ isImporting ? '导入进度' : '最近一次导入结果' }}
       </h2>
+
+      <div
+        v-if="!isImporting"
+        class="mb-4 rounded-xl border border-emerald-100 bg-emerald-50/80 px-4 py-3 text-sm text-emerald-700"
+      >
+        导入任务已结束，当前结果会保留在这里，方便你切换页面后回来继续查看。
+      </div>
       
       <div class="mb-4">
         <div class="flex justify-between text-sm text-gray-600 mb-1">
@@ -113,11 +123,20 @@
         
         <div class="flex justify-center mt-4">
           <button 
+            v-if="isImporting"
             @click="stopImport" 
             class="flex items-center px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-all duration-200 hover:scale-105 hover:shadow-md"
           >
             <StopCircleIcon class="w-4 h-4 mr-1" />
             停止导入
+          </button>
+          <button
+            v-else
+            @click="clearImportSession"
+            class="flex items-center px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 hover:scale-105 hover:shadow-md"
+          >
+            <PlayIcon class="w-4 h-4 mr-1" />
+            开始新的导入
           </button>
         </div>
       </div>
@@ -126,9 +145,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { watch } from 'vue';
 import { useDoubanImport } from '../hooks/useDoubanImport';
-import type { ImportProgress, ImportLog } from '../../../types/import';
 import { useAppStore } from '../../../stores/app';
 import { 
   User as UserIcon, 
@@ -148,10 +166,12 @@ const appStore = useAppStore();
 const {
   doubanUserId,
   isImporting,
+  hasImportSession,
   importProgress,
   importLogs,
   startDoubanImport,
-  stopImport
+  stopImport,
+  clearImportSession
 } = useDoubanImport();
 
 // 处理开始导入
@@ -173,7 +193,7 @@ watch(importLogs, () => {
       logContainer.scrollTop = logContainer.scrollHeight;
     }
   }, 50);
-}, { deep: true });
+}, { deep: true, immediate: true });
 </script>
 
 <style scoped>
