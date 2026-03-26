@@ -4,8 +4,9 @@
  * @author yanstu
  */
 
-import Database from '@tauri-apps/plugin-sql'
+import type Database from '@tauri-apps/plugin-sql'
 import { APP_CONFIG } from '../../../config/app.config'
+import { DatabaseSchema } from './schema'
 
 /**
  * 数据库连接管理类
@@ -18,11 +19,11 @@ export class DatabaseConnection {
    */
   static async connect(): Promise<Database> {
     try {
-      const Database = await import('@tauri-apps/plugin-sql')
+      const sqlModule = await import('@tauri-apps/plugin-sql')
       
       // 使用配置中的数据库名称
       const dbName = APP_CONFIG.database.name
-      const db = await Database.default.load(`sqlite:${dbName}`)
+      const db = await sqlModule.default.load(`sqlite:${dbName}`)
       
       return db
     } catch (error) {
@@ -84,7 +85,6 @@ export class DatabaseConnection {
    * 确保数据库表结构正确创建
    */
   private static async ensureTableStructure(): Promise<void> {
-    const { DatabaseSchema } = await import('./schema')
     await DatabaseSchema.ensureTableStructure()
   }
 }

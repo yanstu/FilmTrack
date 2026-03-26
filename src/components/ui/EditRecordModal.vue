@@ -127,12 +127,14 @@
 
 <script setup lang="ts">
 import { ref, watch, computed, nextTick } from 'vue';
-import { getTypeLabel, getStatusLabel } from '../../utils/constants';
 import { APP_CONFIG } from '../../../config/app.config';
 import Modal from './Modal.vue';
 import HeadlessSelect from './HeadlessSelect.vue';
 import StarRating from './StarRating.vue';
 import type { EditRecordModalProps, EditRecordModalEmits } from './types';
+import type { Movie } from '../../types';
+import { getNormalizedProgress, normalizeProgressForStatus } from '../../utils/seasonProgress';
+import { useWatchRecordFields } from '../../composables/useWatchRecordFields';
 
 type Props = EditRecordModalProps;
 type Emits = EditRecordModalEmits;
@@ -141,7 +143,6 @@ const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
 const localMovie = ref<Movie>({} as Movie);
-const dateError = ref<string>(''); // 日期错误提示
 
 // 下拉选项配置
 const statusOptions = [
@@ -151,56 +152,14 @@ const statusOptions = [
   }))
 ];
 
-// 计算季数选项
-const seasonOptions = computed(() => {
-  if (!localMovie.value.seasons_data) {
-    // 如果没有seasons_data，使用传统方式生成选项
-    const options = [];
-    const maxSeasons = localMovie.value.total_seasons || 1;
-    for (let i = 1; i <= maxSeasons; i++) {
-      options.push({
-        value: i,
-        label: `第 ${i} 季`
-      });
-    }
-    return options;
-  }
-
-  // 基于seasons_data生成选项
-  return Object.values(localMovie.value.seasons_data)
-    .sort((a, b) => a.season_number - b.season_number)
-    .map(season => ({
-      value: season.season_number,
-      label: `第 ${season.season_number} 季`
-    }));
-});
-
-// 计算当前季的最大集数
-const currentSeasonMaxEpisodes = computed(() => {
-  if (!localMovie.value.seasons_data || !localMovie.value.current_season) {
-    return localMovie.value.total_episodes || 999;
-  }
-
-  const currentSeasonData = localMovie.value.seasons_data[localMovie.value.current_season.toString()];
-  return currentSeasonData?.episode_count || 999;
-});
-
-// 校验观看日期
-const validateWatchedDate = () => {
-  if (!localMovie.value.watched_date) {
-    dateError.value = '请选择观看日期';
-    return false;
-  }
-  
-  const currentDate = new Date().toISOString().split('T')[0];
-  if (localMovie.value.watched_date > currentDate) {
-    dateError.value = '观看日期不能大于当前日期';
-    return false;
-  }
-  
-  dateError.value = '';
-  return true;
-};
+const {
+  dateError,
+  seasonOptions,
+  currentSeasonMaxEpisodes,
+  validateWatchedDate,
+  handleEpisodeInput,
+  setToLastEpisode
+} = useWatchRecordFields(localMovie);
 
 // 检查是否可以保存
 const canSave = computed(() => {
@@ -216,39 +175,6 @@ const dateInputClass = computed(() => {
   return `${baseClass} border-gray-200/50 focus:border-blue-400 focus:ring-blue-100`;
 });
 
-// 监听季数变化，重置集数为1
-watch(() => localMovie.value.current_season, (newSeason, oldSeason) => {
-  if (newSeason !== oldSeason && oldSeason !== undefined) {
-    // 当季数发生变化时，重置集数为1
-    localMovie.value.current_episode = 1;
-  }
-});
-
-// 监听观看日期变化，实时校验
-watch(() => localMovie.value.watched_date, () => {
-  validateWatchedDate();
-});
-
-// 处理集数输入，确保不超过当前季最大集数且不小于等于0
-const handleEpisodeInput = (event: Event) => {
-  const target = event.target as HTMLInputElement;
-  let value = parseInt(target.value) || 1;
-
-  // 限制不能小于等于0，最小值为1
-  if (value <= 0) {
-    value = 1;
-  }
-
-  // 限制不能超过当前季最大集数
-  if (value > currentSeasonMaxEpisodes.value) {
-    value = currentSeasonMaxEpisodes.value;
-  }
-
-  // 更新输入框显示值
-  target.value = value.toString();
-  localMovie.value.current_episode = value;
-};
-
 // 初始化电影数据，确保所有必需字段都有默认值
 const initializeMovieData = (movie: Movie): Movie => {
   return {
@@ -260,8 +186,8 @@ const initializeMovieData = (movie: Movie): Movie => {
     // 确保观看日期字段有默认值，正确回显watched_date
     watched_date: movie.watched_date || new Date().toISOString().split('T')[0],
     // 确保其他可能缺失的字段有默认值
-    current_season: movie.current_season || 1,
-    current_episode: movie.current_episode || 0,
+    current_season: getNormalizedProgress(movie).season,
+    current_episode: getNormalizedProgress(movie).episode,
     watch_source: movie.watch_source || '',
     notes: movie.notes || '',
     watch_count: movie.watch_count || 0,
@@ -288,22 +214,6 @@ watch(() => props.isOpen, (isOpen) => {
   }
 });
 
-function setToLastEpisode() {
-  // 如果有seasons_data，使用当前季的集数
-  if (localMovie.value.seasons_data && localMovie.value.current_season) {
-    const currentSeasonData = localMovie.value.seasons_data[localMovie.value.current_season.toString()];
-    if (currentSeasonData?.episode_count) {
-      localMovie.value.current_episode = currentSeasonData.episode_count;
-      return;
-    }
-  }
-
-  // 回退到传统方式
-  if (localMovie.value.total_episodes) {
-    localMovie.value.current_episode = localMovie.value.total_episodes;
-  }
-}
-
 function handleClose() {
   emit('close');
 }
@@ -314,6 +224,7 @@ function handleSave() {
     return; // 校验失败，不执行保存
   }
   
-  emit('save', JSON.parse(JSON.stringify(localMovie.value)));
+  const normalizedMovie = normalizeProgressForStatus(JSON.parse(JSON.stringify(localMovie.value))) as Movie;
+  emit('save', normalizedMovie);
 }
 </script>

@@ -364,7 +364,7 @@ export const tmdbAPI = {
     // 生成缓存键
     const cacheKey = `genres_${mediaType}`;
 
-    return this._request<TMDbGenreResponse>(`/genre/${mediaType}/list`, {}, cacheKey);
+    return this._request(`/genre/${mediaType}/list`, {}, cacheKey) as Promise<ApiResponse<TMDbGenreResponse>>;
   },
 
   // 获取影视作品的背景图片
@@ -519,22 +519,29 @@ export const throttle = <T extends (...args: unknown[]) => unknown>(
 // 数据转换工具
 export const transformTMDbToMovie = (tmdbMovie: TMDbMovie): ParsedMovie => {
   return {
+    id: `tmdb-${tmdbMovie.media_type || (tmdbMovie.title ? 'movie' : 'tv')}-${tmdbMovie.id}`,
     title: tmdbMovie.title || tmdbMovie.name || '',
     original_title: tmdbMovie.original_title || tmdbMovie.original_name || '',
     overview: tmdbMovie.overview || '',
-    poster: tmdbMovie.poster_path || '',
-    backdrop: tmdbMovie.backdrop_path || '',
+    poster_path: tmdbMovie.poster_path || null,
+    backdrop_path: tmdbMovie.backdrop_path || null,
     year: tmdbMovie.release_date
       ? new Date(tmdbMovie.release_date).getFullYear()
       : tmdbMovie.first_air_date
       ? new Date(tmdbMovie.first_air_date).getFullYear()
-      : null,
+      : undefined,
     type: tmdbMovie.media_type || (tmdbMovie.title ? 'movie' : 'tv'),
+    genres: [],
+    runtime: null,
+    tmdb_id: tmdbMovie.id,
     tmdb_rating: tmdbMovie.vote_average || 0,
-    genres: tmdbMovie.genre_ids?.join(',') || '',
+    vote_average: tmdbMovie.vote_average || 0,
     status: 'planned',
+    watch_count: 0,
     date_added: new Date().toISOString(),
     date_updated: new Date().toISOString(),
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
   };
 };
 
@@ -682,7 +689,7 @@ class ApiCache {
 
       StorageService.set(storageKey as keyof typeof StorageService, typeCache);
     } catch (error: unknown) {
-      if (error.name === 'QuotaExceededError') {
+      if (error instanceof Error && error.name === 'QuotaExceededError') {
         const cacheType = this.getCacheType(key);
         this.emergencyCleanupType(cacheType);
       }

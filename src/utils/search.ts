@@ -3,8 +3,6 @@
  * 支持拼音首字母、部分匹配等功能
  */
 
-import { pinyin } from 'pinyin-pro';
-
 /**
  * 搜索配置选项
  */
@@ -38,38 +36,69 @@ const defaultOptions: Required<SearchOptions> = {
   searchFields: []
 };
 
+type PinyinFunction = (text: string, options?: Record<string, unknown>) => string | string[];
+
+let pinyinLoader: Promise<PinyinFunction> | null = null;
+
+async function loadPinyin(): Promise<PinyinFunction> {
+  if (!pinyinLoader) {
+    pinyinLoader = import('pinyin-pro').then(module => module.pinyin);
+  }
+
+  return pinyinLoader;
+}
+
+function normalizePinyinArray(value: string | string[]): string[] {
+  return Array.isArray(value) ? value : [value];
+}
+
+function normalizePinyinString(value: string | string[]): string {
+  return Array.isArray(value) ? value.join('') : value;
+}
+
 /**
  * 获取字符串的拼音首字母
  */
-export function getPinyinInitials(text: string): string {
+function getPinyinInitialsWith(text: string, pinyin: PinyinFunction): string {
   try {
-    return pinyin(text, { 
-      toneType: 'none', 
+    const pinyinItems = normalizePinyinArray(pinyin(text, {
+      toneType: 'none',
       type: 'array',
-      v: true 
-    })
-    .map((item: string) => item.charAt(0).toLowerCase())
-    .join('');
+      v: true
+    }));
+    return pinyinItems
+      .map((item: string) => item.charAt(0).toLowerCase())
+      .join('');
   } catch (error) {
     console.warn('获取拼音首字母失败:', error);
     return '';
   }
 }
 
+export async function getPinyinInitials(text: string): Promise<string> {
+  const pinyin = await loadPinyin();
+  return getPinyinInitialsWith(text, pinyin);
+}
+
 /**
  * 获取完整拼音
  */
-export function getFullPinyin(text: string): string {
+function getFullPinyinWith(text: string, pinyin: PinyinFunction): string {
   try {
-    return pinyin(text, { 
-      toneType: 'none', 
+    return normalizePinyinString(pinyin(text, {
+      toneType: 'none',
       separator: '',
-      v: true 
-    }).toLowerCase();
+      v: true
+    })).toLowerCase();
   } catch (error) {
     console.warn('获取完整拼音失败:', error);
     return '';
   }
+}
+
+export async function getFullPinyin(text: string): Promise<string> {
+  const pinyin = await loadPinyin();
+  return getFullPinyinWith(text, pinyin);
 }
 
 /**
@@ -93,7 +122,8 @@ function calculateScore(query: string, target: string, matchType: 'exact' | 'par
 function isMatch(
   query: string, 
   target: string, 
-  options: Required<SearchOptions>
+  options: Required<SearchOptions>,
+  pinyin?: PinyinFunction
 ): { isMatch: boolean; score: number; matchType: string } {
   if (!query || query.length < options.minLength) {
     return { isMatch: false, score: 0, matchType: '' };
@@ -113,14 +143,14 @@ function isMatch(
   }
 
   // 3. 拼音匹配（如果启用）
-  if (options.enablePinyin) {
-    const fullPinyin = getFullPinyin(target);
+  if (options.enablePinyin && pinyin) {
+    const fullPinyin = getFullPinyinWith(target, pinyin);
     if (fullPinyin && fullPinyin.includes(normalizedQuery)) {
       return { isMatch: true, score: calculateScore(query, target, 'pinyin'), matchType: 'pinyin' };
     }
 
     // 4. 拼音首字母匹配
-    const pinyinInitials = getPinyinInitials(target);
+    const pinyinInitials = getPinyinInitialsWith(target, pinyin);
     if (pinyinInitials && pinyinInitials.includes(normalizedQuery)) {
       return { isMatch: true, score: calculateScore(query, target, 'initials'), matchType: 'initials' };
     }
@@ -194,10 +224,49 @@ export function fuzzySearch<T>(
   return results.sort((a, b) => b.score - a.score);
 }
 
+export async function fuzzySearchAsync<T>(
+  items: T[],
+  query: string,
+  options: SearchOptions = {}
+): Promise<SearchResult<T>[]> {
+  const config = { ...defaultOptions, ...options };
+
+  if (!query || query.trim().length < config.minLength) {
+    return items.map(item => ({ item, score: 0, matches: [] }));
+  }
+
+  const pinyin = config.enablePinyin ? await loadPinyin() : undefined;
+  const results: SearchResult<T>[] = [];
+
+  for (const item of items) {
+    const searchTexts = extractSearchText(item, config.searchFields);
+    let bestScore = 0;
+    const matches: string[] = [];
+
+    for (const text of searchTexts) {
+      const matchResult = isMatch(query.trim(), text, config, pinyin);
+      if (matchResult.isMatch) {
+        matches.push(`${text} (${matchResult.matchType})`);
+        bestScore = Math.max(bestScore, matchResult.score);
+      }
+    }
+
+    if (bestScore > 0 || matches.length > 0 || !query.trim()) {
+      results.push({
+        item,
+        score: bestScore,
+        matches
+      });
+    }
+  }
+
+  return results.sort((a, b) => b.score - a.score);
+}
+
 /**
  * 高亮匹配文本
  */
-export function highlightMatch(text: string, query: string, enablePinyin = true): string {
+export async function highlightMatch(text: string, query: string, enablePinyin = true): Promise<string> {
   if (!query || !text) return text;
 
   const normalizedQuery = query.toLowerCase();
@@ -212,7 +281,7 @@ export function highlightMatch(text: string, query: string, enablePinyin = true)
   // 拼音匹配高亮（简化处理）
   if (enablePinyin) {
     try {
-      const fullPinyin = getFullPinyin(text);
+      const fullPinyin = await getFullPinyin(text);
       if (fullPinyin && fullPinyin.includes(normalizedQuery)) {
         return `<mark>${text}</mark>`;
       }

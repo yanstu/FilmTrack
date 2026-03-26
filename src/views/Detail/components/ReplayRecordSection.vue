@@ -75,7 +75,7 @@
               </svg>
             </button>
             <button 
-              @click="deleteHistory(history.id!)"
+              @click="deleteHistory(history.id)"
               class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200"
               title="删除记录"
             >
@@ -257,7 +257,7 @@ const addNewHistory = () => {
 const editHistory = (history: ReplayRecord) => {
   editingHistory.value = history;
   historyForm.value = {
-    watched_date: history.watched_date,
+    watched_date: history.watched_date || history.watch_date,
     rating: history.rating,
     notes: history.notes || ''
   };
@@ -304,9 +304,6 @@ const saveHistory = async () => {
     // 重新加载观看历史
     await loadReplayRecords();
     
-    // 刷新电影数据以更新最后观看日期
-    await movieStore.fetchMovies();
-    
     closeEditModal();
   } catch (error) {
     console.error('保存观看历史失败:', error);
@@ -315,8 +312,8 @@ const saveHistory = async () => {
   }
 };
 
-const deleteHistory = (historyId: number) => {
-  deletingHistoryId.value = historyId.toString();
+const deleteHistory = (historyId: string) => {
+  deletingHistoryId.value = historyId;
   showDeleteConfirm.value = true;
   deleteConfirmInput.value = '';
 };

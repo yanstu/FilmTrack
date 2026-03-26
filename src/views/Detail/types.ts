@@ -2,7 +2,7 @@
  * Detail 页面相关类型定义
  */
 
-import type { Movie } from '../../types';
+import type { Movie, ModalType } from '../../types';
 
 export interface DetailState {
   isLoading: boolean;
@@ -19,7 +19,7 @@ export interface ModalState {
 
 export interface DialogState {
   visible: boolean;
-  type: 'success' | 'error' | 'warning' | 'info' | 'confirm';
+  type: ModalType;
   title: string;
   message: string;
   onConfirm: () => void;
@@ -146,6 +146,8 @@ export interface ActionButtonsProps {
 
 export interface ActionButtonsEmits {
   (e: 'editRecord'): void;
+  (e: 'markEpisodeWatched'): void;
+  (e: 'updateMovieInfo'): void;
   (e: 'deleteRecord'): void;
 }
 

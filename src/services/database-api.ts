@@ -5,7 +5,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
-import type { ApiResponse, Movie, Statistics, ReplayRecord, ReplayRecordForm, DatabaseRow } from '../types';
+import type { ApiResponse, Movie, Statistics, ReplayRecord, ReplayRecordForm, UpdateMovieForm } from '../types';
 import { DatabaseService, ReplayRecordDAO } from './database';
 import { StatisticsDAO } from './database/dao/statistics.dao';
 import { MovieDAO } from './database/dao/movie.dao';
@@ -36,21 +36,12 @@ export class DatabaseApiService {
     externalId?: string
   ): Promise<ApiResponse<{ exists: boolean }>> {
     return withApiResponse(async () => {
-      try {
-        const result = await MovieDAO.getMovies();
-        if (!result.success) {
-          return { exists: false };
-        }
-        const movies = result.data;
-        const exists = movies.some(movie => 
-          movie.title === title || 
-          (externalId && movie.tmdb_id?.toString() === externalId)
-        );
-        return { exists };
-      } catch (error) {
-        console.error('检查电影是否存在失败:', error);
-        throw new Error(`检查电影是否存在失败: ${error}`);
+      const result = await MovieDAO.existsMovie(title, externalId);
+      if (!result.success) {
+        throw new Error(result.error || '检查电影是否存在失败');
       }
+
+      return result.data || { exists: false };
     });
   }
   
@@ -67,12 +58,20 @@ export class DatabaseApiService {
   ): Promise<ApiResponse<Movie[]>> {
     return MovieDAO.getMovies(status, limit, offset);
   }
+
+  /**
+   * 获取电影总数
+   * @param status 观看状态
+   */
+  static async countMovies(status?: string): Promise<ApiResponse<number>> {
+    return MovieDAO.countMovies(status);
+  }
   
   /**
    * 添加电影
    * @param movie 电影数据
    */
-  static async addMovie(movie: DatabaseRow): Promise<ApiResponse<Movie>> {
+  static async addMovie(movie: Partial<Movie>): Promise<ApiResponse<Movie>> {
     return MovieDAO.addMovie(movie);
   }
   
@@ -80,7 +79,7 @@ export class DatabaseApiService {
    * 更新电影
    * @param movie 电影数据
    */
-  static async updateMovie(movie: DatabaseRow): Promise<ApiResponse<Movie>> {
+  static async updateMovie(movie: UpdateMovieForm): Promise<ApiResponse<Movie>> {
     return MovieDAO.updateMovie(movie);
   }
   
@@ -111,25 +110,6 @@ export class DatabaseApiService {
   }
 
   /**
-   * 添加观看历史（兼容旧版API）
-   * @param movieId 电影ID
-   * @param notes 观看笔记
-   */
-  static async addReplayRecordLegacy(
-    movieId: string, 
-    notes?: string
-  ): Promise<ApiResponse<ReplayRecord>> {
-    const replayRecordForm: ReplayRecordForm = {
-      movie_id: movieId,
-      watch_date: new Date().toISOString(),
-      duration: 0,
-      progress: 1.0,
-      notes: notes
-    };
-    return ReplayRecordDAO.addReplayRecord(replayRecordForm);
-  }
-  
-  /**
    * 获取观看历史
    * @param movieId 电影ID（可选）
    * @param limit 限制数量
@@ -145,45 +125,6 @@ export class DatabaseApiService {
     } else {
       return ReplayRecordDAO.getAllReplayRecords(limit, offset);
     }
-  }
-
-  /**
-   * 获取观看历史（兼容旧版API）
-   * @param movieId 电影ID（可选）
-   * @param limit 限制数量
-   */
-  static async getReplayRecordsLegacy(
-    movieId?: string, 
-    limit?: number
-  ): Promise<ApiResponse<ReplayRecord[]>> {
-    return withApiResponse(async () => {
-      const moviesResult = await MovieDAO.getMovies()
-      if (moviesResult.success && moviesResult.data) {
-        const moviesData = moviesResult.data
-          .filter(movie => movieId ? movie.id === movieId : true);
-          
-        const historyData = moviesData
-          .map(movie => ({
-            id: movie.id,
-            movie_id: movie.id,
-            watch_date: movie.updated_at,
-            watched_date: movie.updated_at,
-            episode_number: movie.current_episode,
-            season_number: movie.current_season,
-            duration_minutes: null,
-            duration: 0,
-            progress: movie.status === 'completed' ? 1.0 : 0.5,
-            notes: movie.notes,
-            created_at: movie.created_at,
-            updated_at: movie.updated_at
-          } as ReplayRecord))
-          .sort((a, b) => new Date(b.watched_date).getTime() - new Date(a.watched_date).getTime())
-          .slice(0, limit || 50);
-        
-        return historyData;
-      }
-      return [];
-    });
   }
 
   /**
@@ -281,6 +222,7 @@ export const databaseAPI = {
   initDatabase: DatabaseApiService.initDatabase,
   checkExistingMovie: DatabaseApiService.checkExistingMovie,
   getMovies: DatabaseApiService.getMovies,
+  countMovies: DatabaseApiService.countMovies,
   addMovie: DatabaseApiService.addMovie,
   updateMovie: DatabaseApiService.updateMovie,
   deleteMovie: DatabaseApiService.deleteMovie,
@@ -292,9 +234,6 @@ export const databaseAPI = {
   deleteReplayRecord: DatabaseApiService.deleteReplayRecord,
   getReplayRecordById: DatabaseApiService.getReplayRecordById,
   getWatchCount: DatabaseApiService.getWatchCount,
-  // 兼容旧版API
-  addReplayRecordLegacy: DatabaseApiService.addReplayRecordLegacy,
-  getReplayRecordsLegacy: DatabaseApiService.getReplayRecordsLegacy,
   // 其他API
   getStatistics: DatabaseApiService.getStatistics,
   beginTransaction: DatabaseApiService.beginTransaction,

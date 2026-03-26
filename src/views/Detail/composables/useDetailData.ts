@@ -9,6 +9,29 @@ import { tmdbAPI } from '../../../utils/api';
 import { removeCachedImages } from '../../../utils/imageCache';
 import type { Movie, TMDbMovieDetail } from '../../../types';
 import type { DetailState, DialogState } from '../types';
+import {
+  buildSeasonsDataFromTmdb,
+  getNormalizedProgress,
+  normalizeProgressForStatus
+} from '../../../utils/seasonProgress';
+
+const normalizeAirStatus = (status?: string): Movie['air_status'] => {
+  switch (status) {
+    case 'Returning Series':
+    case 'In Production':
+      return 'airing';
+    case 'Ended':
+      return 'ended';
+    case 'Canceled':
+      return 'cancelled';
+    case 'Pilot':
+      return 'pilot';
+    case 'Planned':
+      return 'planned';
+    default:
+      return undefined;
+  }
+};
 
 export function useDetailData(
   showDialog: (type: DialogState['type'], title: string, message: string, onConfirm?: () => void) => void
@@ -74,12 +97,15 @@ export function useDetailData(
         tmdb_rating: details.vote_average,
         total_episodes: (details as TMDbMovieDetail).number_of_episodes,
         total_seasons: (details as TMDbMovieDetail).number_of_seasons,
-        air_status: (details as TMDbMovieDetail).status,
+        seasons_data: buildSeasonsDataFromTmdb((details as TMDbMovieDetail).seasons),
+        air_status: normalizeAirStatus((details as TMDbMovieDetail).status),
         updated_at: new Date().toISOString()
       };
 
-      await movieStore.updateMovie(updatedMovie);
-      detailState.value.movie = updatedMovie;
+      const normalizedMovie = normalizeProgressForStatus(updatedMovie) as Movie;
+
+      await movieStore.updateMovie(normalizedMovie);
+      detailState.value.movie = normalizedMovie;
 
       // 清除旧的背景图片缓存
       const oldBackdropImages = detailState.value.backdropImages || [];
@@ -122,9 +148,12 @@ export function useDetailData(
         }
       }
       
-      updatedMovie.updated_at = new Date().toISOString();
-      await movieStore.updateMovie(updatedMovie);
-      detailState.value.movie = { ...updatedMovie };
+      const normalizedMovie = normalizeProgressForStatus({
+        ...updatedMovie,
+        updated_at: new Date().toISOString()
+      }) as Movie;
+      await movieStore.updateMovie(normalizedMovie);
+      detailState.value.movie = { ...normalizedMovie };
       showDialog('success', '保存成功', '记录已更新');
     } catch (error) {
       console.error('保存失败:', error);
@@ -151,12 +180,9 @@ export function useDetailData(
         if (detailState.value.movie.personal_rating === undefined || detailState.value.movie.personal_rating === null) {
           detailState.value.movie.personal_rating = 0;
         }
-        if (detailState.value.movie.current_season === undefined || detailState.value.movie.current_season === null) {
-          detailState.value.movie.current_season = 1;
-        }
-        if (detailState.value.movie.current_episode === undefined || detailState.value.movie.current_episode === null) {
-          detailState.value.movie.current_episode = 0;
-        }
+        const normalizedProgress = getNormalizedProgress(detailState.value.movie);
+        detailState.value.movie.current_season = normalizedProgress.season;
+        detailState.value.movie.current_episode = normalizedProgress.episode;
         if (detailState.value.movie.watch_source === undefined || detailState.value.movie.watch_source === null) {
           detailState.value.movie.watch_source = '';
         }

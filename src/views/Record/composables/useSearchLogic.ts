@@ -7,8 +7,13 @@ import { useRouter } from 'vue-router';
 import { useMovieStore } from '../../../stores/movie';
 import { tmdbAPI, debounce } from '../../../utils/api';
 import { getYear } from '../../../utils/constants';
-import type { TMDbMovie, SeasonsData, SeasonData, TMDbSeason } from '../../../types';
+import type { TMDbMovie } from '../../../types';
 import type { RecordForm, SearchState, DialogState } from '../types';
+import {
+  buildSeasonsDataFromTmdb,
+  getNormalizedProgress,
+  isTvMovie
+} from '../../../utils/seasonProgress';
 
 export function useSearchLogic(
   form: Ref<RecordForm>,
@@ -91,24 +96,12 @@ export function useSearchLogic(
         form.value.total_episodes = detail.number_of_episodes;
         form.value.total_seasons = detail.number_of_seasons;
         form.value.air_status = detail.status;
-
-        // 处理季集数据
-        if (detail.seasons && Array.isArray(detail.seasons)) {
-          const seasonsData: SeasonsData = {};
-          detail.seasons.forEach((season: TMDbSeason) => {
-            // 跳过第0季（通常是特别篇）
-            if (season.season_number > 0) {
-              seasonsData[season.season_number.toString()] = {
-                season_number: season.season_number,
-                name: `第 ${season.season_number} 季`,
-                episode_count: season.episode_count || 0,
-                air_date: season.air_date,
-                poster_path: season.poster_path
-              };
-            }
-          });
-          form.value.seasons_data = seasonsData;
-        }
+        form.value.seasons_data = buildSeasonsDataFromTmdb(detail.seasons);
+      } else {
+        form.value.total_episodes = undefined;
+        form.value.total_seasons = undefined;
+        form.value.seasons_data = undefined;
+        form.value.air_status = '';
       }
 
       // 主动缓存图片
@@ -116,7 +109,7 @@ export function useSearchLogic(
         const imageUrl = tmdbAPI.getImageURL(detail.poster_path);
         try {
           // 动态导入并缓存图片
-          const { prefetchImages } = await import('../../../utils/imageCache');
+          const { prefetchImages } = await import('../../../utils/imagePrefetch');
           await prefetchImages([imageUrl]);
         } catch (error) {
         }
@@ -128,8 +121,14 @@ export function useSearchLogic(
       form.value.watch_source = '';
       form.value.notes = '';
       form.value.watched_date = new Date().toISOString().split('T')[0];
-      form.value.current_episode = 1;
       form.value.current_season = 1;
+      form.value.current_episode = 0;
+
+      if (isTvMovie(form.value)) {
+        const normalized = getNormalizedProgress(form.value);
+        form.value.current_season = normalized.season;
+        form.value.current_episode = normalized.episode;
+      }
 
       // 清空搜索状态
       searchState.value.query = '';

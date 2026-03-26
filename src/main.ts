@@ -14,13 +14,16 @@ import { registerPlugins, initializePlugins } from './plugins';
 import { initBrowserControl } from './utils/browser';
 
 // 导入缓存管理
-import { tmdbAPI } from './utils/api';
+import { setupImageCacheLifecycle } from './utils/imageCache';
+import { performTMDbCacheHealthCheck } from './utils/tmdbCacheMaintenance';
+import { APP_CONFIG } from '../config/app.config';
 
 // 初始化浏览器控制
 initBrowserControl();
 
 // 执行缓存健康检查
-tmdbAPI.performCacheHealthCheck();
+performTMDbCacheHealthCheck(APP_CONFIG.tmdb.request.cacheTimeInHours);
+setupImageCacheLifecycle();
 
 // 初始化插件系统
 initializePlugins();

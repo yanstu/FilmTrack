@@ -29,8 +29,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { Movie } from '../../../types';
 import type { ActionButtonsProps, ActionButtonsEmits } from '../types';
+import { getNextWatchProgress } from '../../../utils/seasonProgress';
 
 const props = defineProps<ActionButtonsProps>();
 defineEmits<ActionButtonsEmits>();
@@ -39,17 +39,6 @@ defineEmits<ActionButtonsEmits>();
 const canMarkEpisodeWatched = computed(() => {
   const movie = props.movie;
   if (!movie || movie.type !== 'tv') return false;
-
-  const currentEpisode = movie.current_episode || 0;
-  const currentSeason = movie.current_season || 1;
-
-  // 获取当前季的最大集数
-  let currentSeasonMaxEpisodes = movie.total_episodes || 0;
-  if (movie.seasons_data && movie.seasons_data[currentSeason.toString()]) {
-    currentSeasonMaxEpisodes = movie.seasons_data[currentSeason.toString()].episode_count;
-  }
-
-  // 如果已经是当前季的最后一集，则不能继续标记
-  return currentEpisode < currentSeasonMaxEpisodes;
+  return getNextWatchProgress(movie) !== null;
 });
 </script>

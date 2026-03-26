@@ -33,6 +33,7 @@
     "tauri:build": "npx tauri build",
     "lint": "npx eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --ignore-path .gitignore",
     "format": "npx prettier --write src/",
+    "test": "node --experimental-strip-types --import ./tests/register-ts-loader.mjs --test tests/run.test.mjs",
     "type-check": "npx vue-tsc --noEmit"
   },
   "dependencies": {

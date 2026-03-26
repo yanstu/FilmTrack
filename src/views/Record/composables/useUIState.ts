@@ -19,8 +19,8 @@ export function useUIState() {
   });
 
   // 显示图片预览
-  const showImagePreview = (form: Ref<RecordForm>) => {
-    if (form.value.poster_path) {
+  const showImagePreview = (form: RecordForm) => {
+    if (form.poster_path) {
       imagePreviewVisible.value = true;
     }
   };

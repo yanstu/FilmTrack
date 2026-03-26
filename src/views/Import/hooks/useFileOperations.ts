@@ -153,6 +153,10 @@ export function useFileOperations() {
           console.error(`导入失败: ${item.title} - ${error}`);
         }
       }
+
+      if (successCount > 0) {
+        await movieStore.fetchMovies({ force: true });
+      }
       
       alert(`导入完成！成功: ${successCount}, 跳过: ${skipCount}, 失败: ${failCount}`);
       

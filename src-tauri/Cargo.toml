@@ -1,6 +1,6 @@
 [package]
 name = "filmtrack"
-version = "0.4.1"
+version = "0.4.2"
 description = "影迹 - 追踪您的观影足迹"
 authors = ["yanstu"]
 license = "MIT"
@@ -56,4 +56,3 @@ futures-util = "0.3.31"
 # this feature is used for production builds or when `devPath` points to the filesystem
 # DO NOT REMOVE!!
 custom-protocol = ["tauri/custom-protocol"]
-

@@ -41,6 +41,7 @@
 
       <!-- 设置模态框 -->
       <SettingsModal
+        v-if="settingsVisible"
         :is-open="settingsVisible"
         @close="settingsVisible = false"
         @save="handleSettingsSave"
@@ -60,7 +61,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, computed } from 'vue';
+import { ref, onMounted, onBeforeUnmount, computed, defineAsyncComponent, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAppStore } from './stores/app';
 import { NConfigProvider } from 'naive-ui';
@@ -70,12 +71,18 @@ import Navigation from './components/common/Navigation.vue';
 import LoadingOverlay from './components/common/LoadingOverlay.vue';
 import ErrorToast from './components/common/ErrorToast.vue';
 import Modal from './components/ui/Modal.vue';
-import SettingsModal from './components/ui/SettingsModal.vue';
-import UpdateModal from './components/ui/UpdateModal.vue';
-import { listen } from '@tauri-apps/api/event';
-import UpdateService from './services/update';
 import type { UpdateCheckResult, AppSettings } from './types';
-import { open } from '@tauri-apps/plugin-shell';
+import { trackAppLaunch } from './services/analytics';
+
+const SettingsModal = defineAsyncComponent({
+  loader: () => import('./components/ui/SettingsModal.vue'),
+  suspensible: false
+});
+
+const UpdateModal = defineAsyncComponent({
+  loader: () => import('./components/ui/UpdateModal.vue'),
+  suspensible: false
+});
 
 const router = useRouter();
 const appStore = useAppStore();
@@ -160,6 +167,56 @@ const settingsVisible = ref(false);
 // 更新相关
 const updateModalVisible = ref(false);
 const updateInfo = ref<UpdateCheckResult | null>(null);
+let unlistenNavigateToRecord: (() => void) | null = null;
+let updateService: null | {
+  setUpdateCallback: (callback: (result: UpdateCheckResult) => void) => void;
+  initUpdateListener: () => Promise<void>;
+} = null;
+let hasTrackedAppLaunch = false;
+let analyticsPromptHandled = false;
+
+const handleOpenSettings = () => {
+  settingsVisible.value = true;
+};
+
+const ensureAnalyticsConsent = () => {
+  if (analyticsPromptHandled || appStore.settings.usageAnalyticsPrompted) {
+    return;
+  }
+
+  analyticsPromptHandled = true;
+  appStore.modalService.showConfirm(
+    '匿名使用统计',
+    '是否允许发送匿名使用统计？仅会记录应用启动等基础事件，用来判断是否有人在使用，不会上传影视库、搜索词、笔记或导入内容。',
+    () => {
+      appStore.updateSettings({
+        usageAnalyticsEnabled: true,
+        usageAnalyticsPrompted: true
+      });
+    },
+    () => {
+      appStore.updateSettings({
+        usageAnalyticsEnabled: false,
+        usageAnalyticsPrompted: true
+      });
+    }
+  );
+};
+
+const triggerAppLaunchAnalytics = async () => {
+  if (hasTrackedAppLaunch || !appStore.settings.usageAnalyticsEnabled) {
+    return;
+  }
+
+  hasTrackedAppLaunch = true;
+
+  try {
+    await trackAppLaunch(appStore.settings);
+  } catch (error) {
+    hasTrackedAppLaunch = false;
+    console.warn('匿名使用统计上报失败:', error);
+  }
+};
 
 // 处理设置保存
 const handleSettingsSave = (settings: AppSettings) => {
@@ -172,7 +229,7 @@ const handleUpdate = async () => {
   try {
     updateModalVisible.value = false;
     if (updateInfo.value?.download_url) {
-      // 使用Tauri的shell.open打开下载链接
+      const { open } = await import('@tauri-apps/plugin-shell');
       await open(updateInfo.value.download_url);
     }
   } catch (error) {
@@ -197,35 +254,53 @@ onMounted(async () => {
   window.addEventListener('keydown', handleKeyDown);
 
   // 监听打开设置事件
-  window.addEventListener('open-settings', () => {
-    settingsVisible.value = true;
-  });
+  window.addEventListener('open-settings', handleOpenSettings);
+
+  ensureAnalyticsConsent();
+  await triggerAppLaunchAnalytics();
+
+  const [{ listen }, updateModule] = await Promise.all([
+    import('@tauri-apps/api/event'),
+    import('./services/update')
+  ]);
+
+  updateService = updateModule.default;
 
   // 监听导航到添加记录页面事件
-  listen('navigate-to-record', () => {
+  unlistenNavigateToRecord = await listen('navigate-to-record', () => {
     router.push('/record');
   });
 
   // 设置更新回调
-  UpdateService.setUpdateCallback((result: UpdateCheckResult) => {
+  updateService.setUpdateCallback((result: UpdateCheckResult) => {
     updateInfo.value = result;
     updateModalVisible.value = true;
   });
 
   // 初始化更新监听器
   try {
-    await UpdateService.initUpdateListener();
+    await updateService.initUpdateListener();
   } catch (error) {
     console.error('初始化更新监听器失败:', error);
   }
 });
 
+watch(
+  () => appStore.settings.usageAnalyticsEnabled,
+  async (enabled) => {
+    if (enabled) {
+      await triggerAppLaunchAnalytics();
+    }
+  }
+);
+
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleKeyDown);
-  window.removeEventListener('open-settings', () => {
-    settingsVisible.value = true;
-  });
-  // 注意：Tauri的事件监听器会在应用关闭时自动清理
+  window.removeEventListener('open-settings', handleOpenSettings);
+  if (unlistenNavigateToRecord) {
+    unlistenNavigateToRecord();
+    unlistenNavigateToRecord = null;
+  }
 });
 </script>
 

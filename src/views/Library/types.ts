@@ -2,16 +2,10 @@
  * 影视库页面相关类型定义
  */
 
-export interface MovieRecord {
-  id: string;
-  title: string;
-  original_title?: string;
-  type: string;
-  status: string;
+import type { Movie } from '../../types';
+
+export interface MovieRecord extends Movie {
   user_rating?: number;
-  year?: string;
-  overview?: string;
-  poster_path?: string;
 }
 
 export type ViewMode = 'grid' | 'list';

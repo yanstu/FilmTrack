@@ -1,6 +1,5 @@
 import { ref, reactive } from 'vue'
-
-export type ModalType = 'success' | 'warning' | 'error' | 'info' | 'confirm'
+import type { ModalType } from '../types'
 
 export interface ModalState {
   isOpen: boolean

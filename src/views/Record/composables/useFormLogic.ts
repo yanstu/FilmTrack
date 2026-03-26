@@ -8,6 +8,13 @@ import { useMovieStore } from '../../../stores/movie';
 import { APP_CONFIG } from '../../../../config/app.config';
 import type { RecordForm, DialogState, StatusOption } from '../types';
 import type { Status } from '../../../types';
+import {
+  clampEpisodeForSeason,
+  getLastEpisodeInSeason,
+  getNormalizedProgress,
+  isTvMovie,
+  normalizeProgressForStatus
+} from '../../../utils/seasonProgress';
 
 export function useFormLogic(
   showDialog: (type: DialogState['type'], title: string, message: string, onConfirm?: () => void) => void,
@@ -33,8 +40,9 @@ export function useFormLogic(
     poster_path: '',
     total_episodes: undefined,
     total_seasons: undefined,
-    current_episode: 1,
+    current_episode: 0,
     current_season: 1,
+    seasons_data: undefined,
     air_status: ''
   });
 
@@ -54,19 +62,12 @@ export function useFormLogic(
 
   // 设置到最后一集
   const setToLastEpisode = () => {
-    // 如果有seasons_data，使用当前季的集数
-    if (form.value.seasons_data && form.value.current_season) {
-      const currentSeasonData = form.value.seasons_data[form.value.current_season.toString()];
-      if (currentSeasonData?.episode_count) {
-        form.value.current_episode = currentSeasonData.episode_count;
-        return;
-      }
+    if (!isTvMovie(form.value)) {
+      return;
     }
 
-    // 回退到传统方式
-    if (form.value.total_episodes) {
-      form.value.current_episode = form.value.total_episodes;
-    }
+    const currentProgress = getNormalizedProgress(form.value);
+    form.value.current_episode = getLastEpisodeInSeason(form.value, currentProgress.season);
   };
 
   // 提交表单
@@ -86,7 +87,7 @@ export function useFormLogic(
     isSubmitting.value = true;
 
     try {
-      const movieData = {
+      const movieData = normalizeProgressForStatus({
         tmdb_id: form.value.tmdb_id!,
         type: form.value.type as 'movie' | 'tv',
         status: form.value.status as Status,
@@ -96,8 +97,10 @@ export function useFormLogic(
         current_episode: form.value.current_episode || undefined,
         current_season: form.value.current_season || undefined,
         seasons_data: form.value.seasons_data || undefined,
+        total_episodes: form.value.total_episodes,
+        total_seasons: form.value.total_seasons,
         watched_date: form.value.watched_date // 传递观看日期用于设置date_added
-      };
+      });
 
       const response = await movieStore.addMovie(movieData);
       
@@ -140,16 +143,28 @@ export function useFormLogic(
       poster_path: '',
       total_episodes: undefined,
       total_seasons: undefined,
-      current_episode: 1,
+      current_episode: 0,
       current_season: 1,
+      seasons_data: undefined,
       air_status: ''
     };
   };
 
-  // 监听状态变化，如果选择已看且是电视剧，自动设置当前集数为最后一集
   watch(() => form.value.status, (newStatus) => {
-    if (newStatus === 'completed' && form.value.type === 'tv' && form.value.total_episodes) {
-      form.value.current_episode = form.value.total_episodes;
+    if (newStatus === 'completed' && isTvMovie(form.value)) {
+      const normalized = normalizeProgressForStatus({
+        ...form.value,
+        status: newStatus as Status
+      });
+      form.value.current_season = normalized.current_season ?? 1;
+      form.value.current_episode = normalized.current_episode ?? 0;
+      return;
+    }
+
+    if (isTvMovie(form.value)) {
+      const normalized = getNormalizedProgress(form.value);
+      form.value.current_season = normalized.season;
+      form.value.current_episode = clampEpisodeForSeason(form.value, normalized.season, normalized.episode);
     }
   });
 

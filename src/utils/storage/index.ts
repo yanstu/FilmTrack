@@ -4,6 +4,7 @@
  */
 
 import { StorageKey } from './constants';
+import { DEFAULT_APP_SETTINGS } from '../appSettings';
 
 /**
  * 存储服务类
@@ -129,10 +130,7 @@ export class StorageService {
               // 无法解析为JSON，数据可能已损坏
               // 对于重要的系统键，尝试重置为默认值
               if (key === StorageKey.SETTINGS) {
-                const defaultSettings = {
-                  minimizeToTray: true
-                };
-                localStorage.setItem(key, JSON.stringify(defaultSettings));
+                localStorage.setItem(key, JSON.stringify(DEFAULT_APP_SETTINGS));
               } else {
                 // 对于其他键，如果损坏则删除
                 localStorage.removeItem(key);

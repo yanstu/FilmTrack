@@ -2,7 +2,7 @@
  * Record 页面相关类型定义
  */
 
-import type { TMDbMovie, SeasonsData } from '../../types';
+import type { TMDbMovie, SeasonsData, Movie, ModalType } from '../../types';
 
 export interface RecordForm {
   title: string;
@@ -23,12 +23,12 @@ export interface RecordForm {
   current_episode: number;
   current_season: number;
   seasons_data?: SeasonsData;
-  air_status: string;
+  air_status: Movie['air_status'] | '';
 }
 
 export interface DialogState {
   visible: boolean;
-  type: 'success' | 'error' | 'warning' | 'info' | 'confirm';
+  type: ModalType;
   title: string;
   message: string;
   onConfirm: () => void;

@@ -6,6 +6,7 @@ import { computed, type Ref } from 'vue';
 import { tmdbAPI } from '../../../utils/api';
 import { APP_CONFIG } from '../../../../config/app.config';
 import type { DetailState, WatchProgress } from '../types';
+import { getWatchProgressSummary } from '../../../utils/seasonProgress';
 
 export function useDetailUtils(detailState: Ref<DetailState>) {
   // 获取图片URL
@@ -30,38 +31,7 @@ export function useDetailUtils(detailState: Ref<DetailState>) {
         isCompleted: false
       };
     }
-
-    // 计算累计观看集数
-    let totalWatchedEpisodes = 0;
-    const totalEpisodes = movie.total_episodes || 0;
-
-    if (movie.seasons_data && movie.current_season) {
-      // 使用seasons_data计算累计集数
-      const seasons = Object.values(movie.seasons_data)
-        .sort((a, b) => a.season_number - b.season_number);
-
-      for (const season of seasons) {
-        if (season.season_number < movie.current_season) {
-          // 前面的季全部看完
-          totalWatchedEpisodes += season.episode_count;
-        } else if (season.season_number === movie.current_season) {
-          // 当前季看了部分
-          totalWatchedEpisodes += movie.current_episode || 0;
-          break;
-        }
-      }
-    } else {
-      // 回退到传统方式
-      totalWatchedEpisodes = movie.current_episode || 0;
-    }
-
-    const percentage = totalEpisodes > 0 ? Math.round((totalWatchedEpisodes / totalEpisodes) * 100) : 0;
-    return {
-      current: totalWatchedEpisodes,
-      total: totalEpisodes,
-      percentage,
-      isCompleted: percentage >= 100
-    };
+    return getWatchProgressSummary(movie);
   });
 
   // 获取观看进度百分比

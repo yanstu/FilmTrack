@@ -8,6 +8,13 @@ import type { ApiResponse, ReplayRecord, ReplayRecordForm, DatabaseRow } from '.
 import { DatabaseConnection } from '../connection'
 import { DatabaseUtils } from '../utils'
 
+type ReplayRecordRow = DatabaseRow & Partial<ReplayRecord> & {
+  title?: string
+  poster_path?: string | null
+  type?: 'movie' | 'tv'
+  count?: number
+}
+
 /**
  * 观看历史数据访问对象
  */
@@ -39,16 +46,17 @@ export class ReplayRecordDAO {
         }
       }
       
-      const result = await db.select(query, params) as DatabaseRow[]
+      const result = await db.select(query, params) as ReplayRecordRow[]
       
-      const replayRecords: ReplayRecord[] = result.map((row: DatabaseRow) => ({
+      const replayRecords: ReplayRecord[] = result.map((row) => ({
         ...row,
         // 兼容性字段映射
         watched_date: row.watch_date,
         episode_number: row.episode,
+        season_number: row.season,
         timestamp: row.created_at,
         status: 'completed' // 默认状态
-      }))
+      } as ReplayRecord))
       
       return { success: true, data: replayRecords }
     } catch (error) {
@@ -86,9 +94,9 @@ export class ReplayRecordDAO {
         }
       }
       
-      const result = await db.select(query, params) as DatabaseRow[]
+      const result = await db.select(query, params) as ReplayRecordRow[]
       
-      const replayRecords: ReplayRecord[] = result.map((row: DatabaseRow) => ({
+      const replayRecords: ReplayRecord[] = result.map((row) => ({
         id: row.id,
         movie_id: row.movie_id,
         watch_date: row.watch_date,
@@ -96,8 +104,10 @@ export class ReplayRecordDAO {
         episode: row.episode,
         episode_number: row.episode, // 兼容性字段
         season: row.season,
+        season_number: row.season,
         duration: row.duration,
         progress: row.progress,
+        rating: row.rating,
         notes: row.notes,
         created_at: row.created_at,
         updated_at: row.updated_at,
@@ -110,7 +120,7 @@ export class ReplayRecordDAO {
           poster_path: row.poster_path,
           type: row.type
         } : undefined
-      }))
+      } as ReplayRecord))
       
       return { success: true, data: replayRecords }
     } catch (error) {
@@ -225,12 +235,12 @@ export class ReplayRecordDAO {
       const db = await DatabaseConnection.getInstance()
       
       // 先获取要删除的记录信息
-      const result = await db.select('SELECT movie_id FROM replay_records WHERE id = $1', [id]) as DatabaseRow[]
+      const result = await db.select('SELECT movie_id FROM replay_records WHERE id = $1', [id]) as ReplayRecordRow[]
       if (result.length === 0) {
         return { success: false, error: '观看历史记录不存在' }
       }
       
-      const movieId = result[0].movie_id
+      const movieId = result[0].movie_id as string
       
       // 删除记录
       await db.execute('DELETE FROM replay_records WHERE id = $1', [id])
@@ -251,7 +261,7 @@ export class ReplayRecordDAO {
   static async getReplayRecordById(id: string): Promise<ApiResponse<ReplayRecord | null>> {
     try {
       const db = await DatabaseConnection.getInstance()
-      const result = await db.select('SELECT * FROM replay_records WHERE id = $1', [id]) as DatabaseRow[]
+      const result = await db.select('SELECT * FROM replay_records WHERE id = $1', [id]) as ReplayRecordRow[]
       
       if (result.length === 0) {
         return { success: true, data: null }
@@ -262,9 +272,10 @@ export class ReplayRecordDAO {
         ...row,
         watched_date: row.watch_date,
         episode_number: row.episode,
+        season_number: row.season,
         timestamp: row.created_at,
         status: 'completed'
-      }
+      } as ReplayRecord
       
       return { success: true, data: replayRecord }
     } catch (error) {
@@ -282,9 +293,9 @@ export class ReplayRecordDAO {
       const result = await db.select(
         'SELECT COUNT(*) as count FROM replay_records WHERE movie_id = $1',
         [movieId]
-      ) as DatabaseRow[]
+      ) as ReplayRecordRow[]
       
-      return result[0]?.count || 0
+      return Number(result[0]?.count || 0)
     } catch (error) {
       console.error('获取观看次数失败:', error)
       return 0
@@ -330,9 +341,9 @@ export class ReplayRecordDAO {
         SELECT COUNT(*) as count
         FROM replay_records 
         WHERE movie_id = $1
-      `, [movieId]) as DatabaseRow[]
+      `, [movieId]) as ReplayRecordRow[]
       
-      const watchCount = result[0]?.count || 0
+      const watchCount = Number(result[0]?.count || 0)
       const currentTime = new Date().toISOString()
       
       // 更新电影表（不再更新watched_date字段）

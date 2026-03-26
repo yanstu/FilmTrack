@@ -4,10 +4,12 @@
 import { defineStore } from 'pinia';
 import { ref, reactive, nextTick } from 'vue';
 import StorageService, { StorageKey } from '../utils/storage';
+import type { ModalType, AppSettings } from '../types';
+import { DEFAULT_APP_SETTINGS, mergeAppSettings } from '../utils/appSettings';
 
 export interface ModalState {
   isOpen: boolean;
-  type: 'info' | 'success' | 'warning' | 'error' | 'confirm';
+  type: ModalType;
   title: string;
   message: string;
   confirmText: string;
@@ -15,21 +17,6 @@ export interface ModalState {
   showCancel: boolean;
   onConfirm?: () => void;
   onCancel?: () => void;
-}
-
-export interface WindowSettings {
-  width: number;
-  height: number;
-  minWidth: number;
-  minHeight: number;
-  maxWidth?: number;
-  maxHeight?: number;
-  resizable: boolean;
-}
-
-export interface AppSettings {
-  minimizeToTray: boolean;
-  window: WindowSettings;
 }
 
 export const useAppStore = defineStore('app', () => {
@@ -51,18 +38,7 @@ export const useAppStore = defineStore('app', () => {
   });
   
   // 应用设置
-  const settings = reactive<AppSettings>({
-    minimizeToTray: true,
-    window: {
-      width: 1600,
-      height: 900,
-      minWidth: 800,
-      minHeight: 600,
-      maxWidth: undefined,
-      maxHeight: undefined,
-      resizable: true
-    }
-  });
+  const settings = reactive<AppSettings>(mergeAppSettings());
   
   // 设置加载状态
   function setLoading(status: boolean) {
@@ -190,11 +166,10 @@ export const useAppStore = defineStore('app', () => {
   function loadSettings() {
     try {
       const savedSettings = StorageService.get<AppSettings>(StorageKey.SETTINGS);
-      if (savedSettings) {
-        Object.assign(settings, savedSettings);
-      }
+      Object.assign(settings, mergeAppSettings(savedSettings));
     } catch (error) {
       console.error('加载设置失败:', error);
+      Object.assign(settings, DEFAULT_APP_SETTINGS);
     }
   }
   
@@ -205,7 +180,14 @@ export const useAppStore = defineStore('app', () => {
   
   // 更新设置
   function updateSettings(newSettings: Partial<AppSettings>) {
-    Object.assign(settings, newSettings);
+    Object.assign(settings, mergeAppSettings({
+      ...settings,
+      ...newSettings,
+      window: {
+        ...settings.window,
+        ...(newSettings.window ?? {})
+      }
+    }));
     saveSettings();
   }
   

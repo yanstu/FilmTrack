@@ -6,12 +6,12 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
 
 // 导入页面组件
-import Home from '../views/Home.vue';
-import Library from '../views/Library/index.vue';
-import Record from '../views/Record/index.vue';
-import History from '../views/History.vue';
-import Detail from '../views/Detail/index.vue';
-import Import from '../views/Import/index.vue';
+const Home = () => import('../views/Home.vue');
+const Library = () => import('../views/Library/index.vue');
+const Record = () => import('../views/Record/index.vue');
+const History = () => import('../views/History.vue');
+const Detail = () => import('../views/Detail/index.vue');
+const Import = () => import('../views/Import/index.vue');
 
 // 路由配置
 const routes: RouteRecordRaw[] = [

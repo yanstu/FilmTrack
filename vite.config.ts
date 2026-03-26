@@ -43,6 +43,35 @@ export default defineConfig(async () => ({
   
   build: {
     rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes("node_modules")) {
+            return;
+          }
+
+          if (id.includes("node_modules/vue") || id.includes("node_modules/pinia") || id.includes("node_modules/vue-router")) {
+            return "vendor-vue";
+          }
+
+          if (id.includes("node_modules/axios")) {
+            return "vendor-network";
+          }
+
+          if (id.includes("node_modules/pinyin-pro")) {
+            return "vendor-search";
+          }
+
+          if (id.includes("node_modules/marked")) {
+            return "vendor-markdown";
+          }
+
+          if (id.includes("node_modules/naive-ui") || id.includes("node_modules/@headlessui") || id.includes("node_modules/lucide-vue-next")) {
+            return "vendor-ui";
+          }
+
+          return "vendor-misc";
+        }
+      },
       onwarn(warning, warn) {
         // 忽略 "declared but its value is never read" 警告
         if (warning.code === 'UNUSED_EXTERNAL_IMPORT') {

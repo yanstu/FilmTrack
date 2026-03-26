@@ -41,7 +41,6 @@ export class DatabaseService {
   
   static async initialize() {
     await DatabaseConnection.initialize()
-    await DatabaseSchema.ensureTableStructure()
   }
   
   static async ensureTableStructure() {

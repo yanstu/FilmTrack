@@ -81,12 +81,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick, watch } from 'vue';
+import { ref, computed, shallowRef, onMounted, nextTick, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useMovieStore } from '../../stores/movie';
 import { useAppStore } from '../../stores/app';
 import { debounce, tmdbAPI } from '../../utils/api';
-import { fuzzySearch } from '../../utils/search';
+import { fuzzySearchAsync } from '../../utils/search';
 import { useInfiniteScroll, type LoadFunction } from '../../composables/useInfiniteScroll';
 import StorageService, { StorageKey } from '../../utils/storage';
 
@@ -111,6 +111,8 @@ const selectedType = ref('');
 const selectedStatus = ref('');
 const viewMode = ref<ViewMode>('grid');
 const allMovies = ref<MovieRecord[]>([]);
+const filteredItemsSource = shallowRef<MovieRecord[]>([]);
+let filterTaskId = 0;
 
 // 批量选择状态
 const isSelectionMode = ref(false);
@@ -132,8 +134,8 @@ const saveViewMode = (mode: 'grid' | 'list') => {
   StorageService.set(StorageKey.LIBRARY_VIEW_MODE, mode);
 };
 
-// 计算过滤后的数据
-const filteredItems = computed(() => {
+// 同步筛选基础结果，搜索单独异步处理以避免空搜索时加载 vendor-search
+const baseFilteredItems = computed(() => {
   let results = [...allMovies.value];
 
   // 按类型筛选
@@ -146,20 +148,33 @@ const filteredItems = computed(() => {
     results = results.filter(movie => movie.status === selectedStatus.value);
   }
 
-  // 模糊搜索
-  if (searchQuery.value.trim()) {
-    const searchResults = fuzzySearch(results, searchQuery.value, {
-      searchFields: ['title', 'original_title'],
-      enablePinyin: true,
-      minLength: 1
-    });
-    results = searchResults.map(result => result.item);
-  }
-
-
-
   return results;
 });
+
+const filteredItems = computed(() => filteredItemsSource.value);
+
+const refreshFilteredItems = async () => {
+  const currentTaskId = ++filterTaskId;
+  const baseResults = [...baseFilteredItems.value];
+  const query = searchQuery.value.trim();
+
+  if (!query) {
+    filteredItemsSource.value = baseResults;
+    return;
+  }
+
+  const searchResults = await fuzzySearchAsync(baseResults, query, {
+    searchFields: ['title', 'original_title'],
+    enablePinyin: true,
+    minLength: 1
+  });
+
+  if (currentTaskId !== filterTaskId) {
+    return;
+  }
+
+  filteredItemsSource.value = searchResults.map(result => result.item);
+};
 
 // 无限滚动加载函数
 const loadMovies: LoadFunction<MovieRecord> = async (page: number, pageSize: number) => {
@@ -172,7 +187,9 @@ const loadMovies: LoadFunction<MovieRecord> = async (page: number, pageSize: num
       }
     }
 
-    // 等待 filteredItems 计算完成
+    await refreshFilteredItems();
+
+    // 等待筛选结果写回
     await nextTick();
 
     const startIndex = (page - 1) * pageSize;

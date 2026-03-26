@@ -126,11 +126,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watch, ref } from 'vue';
+import { computed } from 'vue';
 import { Clipboard as ClipboardIcon } from 'lucide-vue-next';
 import HeadlessSelect from '../../../components/ui/HeadlessSelect.vue';
 import StarRating from '../../../components/ui/StarRating.vue';
 import type { UserRecordFormProps, UserRecordFormEmits } from '../types';
+import { useWatchRecordFields } from '../../../composables/useWatchRecordFields';
 
 type Props = UserRecordFormProps;
 type Emits = UserRecordFormEmits;
@@ -138,25 +139,17 @@ type Emits = UserRecordFormEmits;
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
-// 日期错误提示
-const dateError = ref<string>('');
+const formRef = computed(() => props.form);
 
-// 观看日期校验函数
-const validateWatchedDate = (): boolean => {
-  if (!props.form.watched_date) {
-    dateError.value = '请选择观看日期';
-    return false;
-  }
-  
-  const currentDate = new Date().toISOString().split('T')[0];
-  if (props.form.watched_date > currentDate) {
-    dateError.value = '观看日期不能大于当前日期';
-    return false;
-  }
-  
-  dateError.value = '';
-  return true;
-};
+const {
+  dateError,
+  seasonOptions,
+  currentSeasonMaxEpisodes,
+  handleEpisodeInput
+} = useWatchRecordFields(formRef, {
+  onDateValidityChange: value => emit('update:dateValid', value),
+  onEpisodeChange: value => emit('update:currentEpisode', value)
+});
 
 // 日期输入框样式计算属性
 const dateInputClass = computed(() => {
@@ -167,83 +160,4 @@ const dateInputClass = computed(() => {
   return `${baseClass} border-gray-200/50 focus:border-blue-400 focus:ring-blue-100 hover:border-gray-300/70 hover:bg-white/90`;
 });
 
-// 日期是否有效的计算属性
-const isDateValid = computed(() => {
-  if (!props.form.watched_date) return false;
-  const currentDate = new Date().toISOString().split('T')[0];
-  return props.form.watched_date <= currentDate;
-});
-
-// 监听观看日期变化
-watch(() => props.form.watched_date, () => {
-  const isValid = validateWatchedDate();
-  emit('update:dateValid', isValid);
-});
-
-// 监听日期有效性变化
-watch(isDateValid, (newValue) => {
-  emit('update:dateValid', newValue);
-}, { immediate: true });
-
-// 计算季数选项
-const seasonOptions = computed(() => {
-  if (!props.form.seasons_data) {
-    // 如果没有seasons_data，使用传统方式生成选项
-    const options = [];
-    const maxSeasons = props.form.total_seasons || 1;
-    for (let i = 1; i <= maxSeasons; i++) {
-      options.push({
-        value: i,
-        label: `第 ${i} 季`
-      });
-    }
-    return options;
-  }
-
-  // 基于seasons_data生成选项
-  return Object.values(props.form.seasons_data)
-    .sort((a, b) => a.season_number - b.season_number)
-    .map(season => ({
-      value: season.season_number,
-      label: `第 ${season.season_number} 季`
-    }));
-});
-
-// 计算当前季的最大集数
-const currentSeasonMaxEpisodes = computed(() => {
-  if (!props.form.seasons_data || !props.form.current_season) {
-    return props.form.total_episodes || 999;
-  }
-
-  const currentSeasonData = props.form.seasons_data[props.form.current_season.toString()];
-  return currentSeasonData?.episode_count || 999;
-});
-
-// 监听季数变化，重置集数为1
-watch(() => props.form.current_season, (newSeason, oldSeason) => {
-  if (newSeason !== oldSeason && oldSeason !== undefined) {
-    // 当季数发生变化时，重置集数为1
-    emit('update:currentEpisode', 1);
-  }
-});
-
-// 处理集数输入，确保不超过当前季最大集数且不小于等于0
-const handleEpisodeInput = (event: Event) => {
-  const target = event.target as HTMLInputElement;
-  let value = parseInt(target.value) || 1;
-
-  // 限制不能小于等于0，最小值为1
-  if (value <= 0) {
-    value = 1;
-  }
-
-  // 限制不能超过当前季最大集数
-  if (value > currentSeasonMaxEpisodes.value) {
-    value = currentSeasonMaxEpisodes.value;
-  }
-
-  // 更新输入框显示值
-  target.value = value.toString();
-  emit('update:currentEpisode', value);
-};
 </script>

@@ -1,10 +1,8 @@
 // UI组件通用类型定义
 
-import type { Movie } from '../../types';
+import type { Movie, ModalType, AppSettings, WindowSettings } from '../../types';
 
 // Modal组件类型
-export type ModalType = 'info' | 'warning' | 'error' | 'success';
-
 export interface ModalProps {
   isOpen: boolean;
   type?: ModalType;
@@ -61,16 +59,6 @@ export interface HeadlessSelectProps {
 
 export interface HeadlessSelectEmits {
   (e: 'update:modelValue', value: string | number): void;
-}
-
-// SettingsModal组件类型
-export interface WindowSettings {
-  resizable: boolean;
-}
-
-export interface AppSettings {
-  minimizeToTray: boolean;
-  window: WindowSettings;
 }
 
 export interface SettingsModalProps {

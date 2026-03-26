@@ -2,13 +2,18 @@
  * Detail 页面操作逻辑
  */
 
-import { nextTick, type Ref } from 'vue';
+import { type Ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useMovieStore } from '../../../stores/movie';
 import { useAppStore } from '../../../stores/app';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import type { Movie } from '../../../types';
 import type { DetailState, DialogState } from '../types';
+import {
+  getNextWatchProgress,
+  getWatchProgressSummary,
+  normalizeProgressForStatus
+} from '../../../utils/seasonProgress';
 
 export function useDetailActions(
   detailState: Ref<DetailState>,
@@ -43,58 +48,39 @@ export function useDetailActions(
 
     try {
       const movie = detailState.value.movie;
-      const currentEpisode = movie.current_episode || 0;
-      const currentSeason = movie.current_season || 1;
-
-      // 获取当前季的最大集数
-      let currentSeasonMaxEpisodes = movie.total_episodes || 0;
-      if (movie.seasons_data && movie.seasons_data[currentSeason.toString()]) {
-        currentSeasonMaxEpisodes = movie.seasons_data[currentSeason.toString()].episode_count;
-      }
-
-      // 检查是否已经是当前季的最后一集
-      if (currentEpisode >= currentSeasonMaxEpisodes) {
-        showDialog('info', '提示', '当前季已看完，请切换到下一季或编辑记录');
+      const nextProgress = getNextWatchProgress(movie);
+      if (!nextProgress) {
+        showDialog('info', '提示', '当前没有可继续标记的剧集，请刷新影视信息或手动编辑记录');
         return;
       }
 
-      const newCurrentEpisode = currentEpisode + 1;
-      const totalEpisodes = movie.total_episodes || 0;
-
       // 确保更新的对象包含所有必要的字段，并且格式与数据库期待的一致
-      const updatedMovie: Movie = {
+      const updatedMovie = normalizeProgressForStatus({
         ...movie,
-        current_episode: newCurrentEpisode,
+        current_season: nextProgress.season,
+        current_episode: nextProgress.episode,
         date_updated: new Date().toISOString(),
         updated_at: new Date().toISOString()
-      };
+      }) as Movie;
 
-      // 计算累计观看集数来判断是否全剧看完
-      let totalWatchedEpisodes = 0;
-      if (movie.seasons_data) {
-        const seasons = Object.values(movie.seasons_data)
-          .sort((a, b) => a.season_number - b.season_number);
+      const summary = getWatchProgressSummary(updatedMovie);
 
-        for (const season of seasons) {
-          if (season.season_number < currentSeason) {
-            totalWatchedEpisodes += season.episode_count;
-          } else if (season.season_number === currentSeason) {
-            totalWatchedEpisodes += newCurrentEpisode;
-            break;
-          }
+      if (summary.isCompleted) {
+        updatedMovie.status = 'completed';
+        const completedMovie = normalizeProgressForStatus(updatedMovie) as Movie;
+        const result = await movieStore.updateMovie(completedMovie);
+        if (result.success) {
+          detailState.value.movie = { ...completedMovie };
+          showDialog('success', '恭喜完结！', `《${movie.title}》已全部看完，状态已更新为"已看"`);
+          return;
         }
-      } else {
-        totalWatchedEpisodes = newCurrentEpisode;
+        throw new Error(result.error || '更新失败');
       }
 
-      // 如果看到最后一集，将状态改为已看
-      if (totalWatchedEpisodes >= totalEpisodes && totalEpisodes > 0) {
-        updatedMovie.status = 'completed';
-        showDialog('success', '恭喜完结！', `《${movie.title}》已全部看完，状态已更新为"已看"`);
-      } else if (newCurrentEpisode >= currentSeasonMaxEpisodes) {
-        showDialog('success', '当前季看完！', `第${currentSeason}季已看完，共${currentSeasonMaxEpisodes}集`);
+      if (nextProgress.episode === 1 && nextProgress.season > (movie.current_season || 1)) {
+        showDialog('success', '进入下一季', `已切换到第${nextProgress.season}季，并标记第1集为已观看`);
       } else {
-        showDialog('success', '成功', `已标记第${currentSeason}季第${newCurrentEpisode}集为已观看`);
+        showDialog('success', '成功', `已标记第${nextProgress.season}季第${nextProgress.episode}集为已观看`);
       }
 
       const result = await movieStore.updateMovie(updatedMovie);

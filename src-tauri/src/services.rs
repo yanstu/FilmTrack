@@ -124,13 +124,19 @@ impl CacheService {
 pub struct StorageService;
 
 impl StorageService {
+    fn get_database_dir(app: &AppHandle) -> Result<PathBuf, String> {
+        app.path().app_config_dir()
+            .map_err(|e| format!("无法获取应用配置目录: {}", e))
+    }
+
     /// 获取存储信息
     pub fn get_storage_info(app: &AppHandle) -> Result<StorageInfo, String> {
         let app_data_dir = app.path().app_data_dir()
             .map_err(|e| format!("无法获取应用数据目录: {}", e))?;
+        let database_dir = Self::get_database_dir(app)?;
 
         // 获取数据库大小
-        let db_path = app_data_dir.join("filmtrack.db");
+        let db_path = database_dir.join("filmtrack.db");
         let db_size_bytes = if db_path.exists() {
             get_size(&db_path).unwrap_or(0)
         } else {
@@ -160,12 +166,19 @@ impl StorageService {
     pub fn clear_all_data(app: &AppHandle) -> Result<(), String> {
         let app_data_dir = app.path().app_data_dir()
             .map_err(|e| format!("无法获取应用数据目录: {}", e))?;
+        let database_dir = Self::get_database_dir(app)?;
 
         // 删除数据库文件
-        let db_path = app_data_dir.join("filmtrack.db");
+        let db_path = database_dir.join("filmtrack.db");
         if db_path.exists() {
             fs::remove_file(&db_path)
                 .map_err(|e| format!("删除数据库失败: {}", e))?;
+        }
+
+        let backup_path = database_dir.join("backups");
+        if backup_path.exists() {
+            fs::remove_dir_all(&backup_path)
+                .map_err(|e| format!("删除数据库备份失败: {}", e))?;
         }
 
         // 删除缓存目录 - 统一使用 app_data_dir

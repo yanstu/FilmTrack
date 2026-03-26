@@ -161,7 +161,7 @@ export interface Movie extends BaseEntity {
   id: string;
   title: string;
   original_title?: string;
-  year: number;
+  year?: number | null;
   type: MovieType;
   poster_path?: string | null;
   backdrop_path?: string | null;
@@ -175,8 +175,8 @@ export interface Movie extends BaseEntity {
   // 集数相关字段
   total_episodes?: number | null; // 总集数
   total_seasons?: number | null; // 总季数
-  current_episode?: number; // 当前观看到的集数
-  current_season?: number; // 当前观看到的季数
+  current_episode?: number; // 当前季已看到的集数，允许 0 表示未开始
+  current_season?: number; // 当前看到的季数，默认从第 1 季开始
   seasons_data?: SeasonsData | null; // 每季的详细信息
   air_status?: 'airing' | 'ended' | 'cancelled' | 'pilot' | 'planned'; // 播出状态
   // 观看相关字段
@@ -210,10 +210,11 @@ export interface ReplayRecord extends BaseEntity {
   // 兼容性字段
   watched_date?: string; // 兼容旧版API
   episode_number?: number; // 兼容旧版API
+  season_number?: number | null; // 兼容旧版API
   timestamp?: string; // 兼容旧版API
   status?: string; // 兼容旧版API
   // 关联数据
-  movie?: Movie; // 关联的电影信息（查询时可选包含）
+  movie?: Pick<Movie, 'id' | 'title' | 'type'> & Partial<Movie>; // 关联的电影信息（查询时可选包含）
 }
 
 /** 电视剧更新提醒数据 */
@@ -321,12 +322,14 @@ export interface AddMovieForm {
   tags?: string[];
   current_episode?: number;
   current_season?: number;
+  total_episodes?: number;
+  total_seasons?: number;
   seasons_data?: SeasonsData;
   watched_date?: string; // 观看日期，用于设置date_added字段
 }
 
 /** 更新影视作品表单 */
-export interface UpdateMovieForm extends Partial<AddMovieForm> {
+export interface UpdateMovieForm extends Partial<Movie> {
   id: string;
 }
 
@@ -479,14 +482,35 @@ export interface ErrorWithMessage {
   message: string;
   code?: string | number;
   status?: number;
+  response?: {
+    statusText?: string;
+    data?: {
+      message?: string;
+    };
+  };
+  request?: unknown;
+}
+
+/** 模态框类型 */
+export type ModalType = 'info' | 'warning' | 'error' | 'success' | 'confirm';
+
+/** 窗口设置类型 */
+export interface WindowSettings {
+  width: number;
+  height: number;
+  minWidth: number;
+  minHeight: number;
+  maxWidth?: number;
+  maxHeight?: number;
+  resizable: boolean;
 }
 
 /** 设置类型 */
 export interface AppSettings {
-  theme?: 'light' | 'dark' | 'auto';
-  language?: string;
-  autoUpdate?: boolean;
-  [key: string]: unknown;
+  minimizeToTray: boolean;
+  usageAnalyticsEnabled: boolean;
+  usageAnalyticsPrompted: boolean;
+  window: WindowSettings;
 }
 
 /** 文件操作类型 */

@@ -24,7 +24,7 @@
       <MovieInfoSection
         :form="form"
         :get-image-url="getImageURL"
-        @show-image-preview="() => showImagePreview(form)"
+        @show-image-preview="showImagePreview(form)"
       />
 
       <!-- 用户记录区域 -->

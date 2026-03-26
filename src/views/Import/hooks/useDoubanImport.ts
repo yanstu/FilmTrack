@@ -1,45 +1,137 @@
 /**
- * 豆瓣导入功能的Hook
+ * 豆瓣导入功能的 Hook
  */
 
 import { ref } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
-import { useAppStore } from '../../../stores/app';
 import { useMovieStore } from '../../../stores/movie';
 import { databaseAPI } from '../../../services/database-api';
 import { tmdbAPI } from '../../../utils/api';
 import {
-  generateSearchKeywords,
   cleanTitle,
   calculateTitleSimilarity,
+  generateSearchVariants,
 } from '../../../utils/titleUtils';
-import { APP_CONFIG } from '../../../../config/app.config';
+import {
+  calculateRelevanceScore,
+  generateTMDbSearchStrategies,
+} from '../../../utils/tmdbSearchEnhancer';
+import {
+  buildSeasonsDataFromTmdb,
+  normalizeProgressForStatus,
+} from '../../../utils/seasonProgress';
 import type {
   ImportProgress,
   ImportLog,
   DoubanMovie,
 } from '../../../types/import';
-import { Movie } from '../../../types';
+import type {
+  Movie,
+  TMDbMovie,
+  TMDbMovieDetail,
+  UpdateMovieForm,
+} from '../../../types';
 
-// 导入设置接口
 interface ImportSettings {
   enableTitleCleaning: boolean;
   enableTMDbMatching: boolean;
 }
 
-/**
- * 从标题中提取季数信息
- * @param title 标题
- * @returns 季数，如果没有则返回null
- */
+type MediaType = 'movie' | 'tv';
+
+type IndexedMovie = Movie & {
+  normalizedTitle: string;
+};
+
+type MatchedDetail = {
+  mediaType: MediaType;
+  detail: TMDbMovieDetail;
+  result: TMDbMovie;
+  strategy: string;
+  score: number;
+};
+
+type ImportOperation =
+  | { kind: 'skip'; message: string }
+  | { kind: 'merge'; payload: UpdateMovieForm; message: string; logType?: ImportLog['type'] }
+  | { kind: 'insert'; payload: Partial<Movie>; message: string };
+
+const MATCH_SCORE_THRESHOLD = 0.45;
+const HIGH_CONFIDENCE_SCORE = 0.82;
+const SEARCH_RESULT_LIMIT = 5;
+
+function normalizeTitle(title: string): string {
+  return cleanTitle(title)
+    .toLowerCase()
+    .replace(/[\s\-_:：·•'".,!?！？（）()]/g, '');
+}
+
+function toArray<T>(value: T | T[] | null | undefined): T[] {
+  if (!value) return [];
+  return Array.isArray(value) ? value : [value];
+}
+
+function uniqueStrings(values: Array<string | null | undefined>): string[] {
+  return [...new Set(values.map(value => value?.trim()).filter((value): value is string => Boolean(value)))];
+}
+
+function formatMatchedTitle(detail: TMDbMovieDetail): string {
+  return detail.title || detail.name || detail.original_title || detail.original_name || '未知标题';
+}
+
+function getPreferredWatchedDate(movie: DoubanMovie, existing: Movie): string | undefined {
+  const candidates = uniqueStrings([movie.watched_date, existing.watched_date, existing.date_added]);
+  if (candidates.length === 0) {
+    return undefined;
+  }
+
+  return candidates.sort()[0];
+}
+
+function getPreferredRating(movie: DoubanMovie, existing: Movie): number | undefined {
+  const ratingCandidates = [movie.rating, existing.personal_rating]
+    .filter((rating): rating is number => typeof rating === 'number' && rating > 0);
+
+  if (ratingCandidates.length === 0) {
+    return undefined;
+  }
+
+  return Math.max(...ratingCandidates);
+}
+
+function mergeNotes(existingNotes?: string | null, newNotes?: string | null): string | undefined {
+  const values = uniqueStrings([existingNotes ?? undefined, newNotes ?? undefined]);
+  if (values.length === 0) {
+    return undefined;
+  }
+
+  return values.join('\n\n');
+}
+
+function normalizeAirStatus(status?: string): Movie['air_status'] {
+  switch (status) {
+    case 'Returning Series':
+    case 'In Production':
+      return 'airing';
+    case 'Ended':
+      return 'ended';
+    case 'Canceled':
+      return 'cancelled';
+    case 'Pilot':
+      return 'pilot';
+    case 'Planned':
+      return 'planned';
+    default:
+      return undefined;
+  }
+}
+
 function extractSeasonNumber(title: string): number | null {
   if (!title) return null;
 
-  // 匹配中文季数表示 - 第X季
   const chineseSeasonMatch = title.match(/第([一二三四五六七八九十\d]+)季/);
   if (chineseSeasonMatch) {
     const seasonText = chineseSeasonMatch[1];
-    // 将中文数字转换为阿拉伯数字
     const chineseNumbers: Record<string, number> = {
       一: 1,
       二: 2,
@@ -55,12 +147,11 @@ function extractSeasonNumber(title: string): number | null {
 
     if (chineseNumbers[seasonText]) {
       return chineseNumbers[seasonText];
-    } else {
-      return parseInt(seasonText, 10);
     }
+
+    return parseInt(seasonText, 10);
   }
 
-  // 匹配英文季数表示 - Season X 或 SX
   const englishSeasonMatch =
     title.match(/Season\s*(\d+)/i) || title.match(/S(\d+)/i);
   if (englishSeasonMatch) {
@@ -70,82 +161,390 @@ function extractSeasonNumber(title: string): number | null {
   return null;
 }
 
-/**
- * 从标题中提取基础剧名（不含季数）
- * @param title 标题
- * @returns 基础剧名
- */
-function extractBaseTVShowTitle(title: string): string {
-  return cleanTitle(title);
+function buildSearchStrategies(movie: DoubanMovie, enableTitleCleaning: boolean): string[] {
+  const rawTitle = movie.title.trim();
+  const originalTitle = movie.original_title?.trim() || '';
+  const cleanedTitle = enableTitleCleaning ? cleanTitle(rawTitle) : rawTitle;
+  const baseTitle = movie.type_ === 'tv' ? cleanedTitle : rawTitle;
+
+  const strategies = [
+    rawTitle,
+    baseTitle,
+    originalTitle,
+    ...generateSearchVariants(rawTitle),
+    ...generateTMDbSearchStrategies(baseTitle),
+    ...generateSearchVariants(originalTitle),
+  ];
+
+  return [...new Set(strategies.map(item => item.trim()).filter(item => item.length >= 2))];
+}
+
+function buildMovieIndexes(movies: Movie[]) {
+  const byTmdbId = new Map<number, IndexedMovie>();
+  const byType = new Map<MediaType, IndexedMovie[]>();
+
+  for (const type of ['movie', 'tv'] as const) {
+    byType.set(type, []);
+  }
+
+  for (const movie of movies) {
+    const indexedMovie: IndexedMovie = {
+      ...movie,
+      normalizedTitle: normalizeTitle(movie.title),
+    };
+
+    if (indexedMovie.tmdb_id) {
+      byTmdbId.set(indexedMovie.tmdb_id, indexedMovie);
+    }
+
+    const typedList = byType.get(indexedMovie.type as MediaType);
+    if (typedList) {
+      typedList.push(indexedMovie);
+    }
+  }
+
+  return { byTmdbId, byType };
+}
+
+function findExistingByTitle(
+  indexes: ReturnType<typeof buildMovieIndexes>,
+  title: string,
+  type: MediaType
+): IndexedMovie | undefined {
+  const normalizedTarget = normalizeTitle(title);
+  const candidates = indexes.byType.get(type) || [];
+
+  return candidates.find(movie =>
+    movie.normalizedTitle === normalizedTarget ||
+    calculateTitleSimilarity(movie.title, title) >= 0.85
+  );
+}
+
+function updateIndexes(
+  indexes: ReturnType<typeof buildMovieIndexes>,
+  movie: Movie,
+  previousMovie?: Movie
+) {
+  if (previousMovie?.tmdb_id) {
+    indexes.byTmdbId.delete(previousMovie.tmdb_id);
+  }
+
+  if (previousMovie) {
+    const previousList = indexes.byType.get(previousMovie.type as MediaType);
+    if (previousList) {
+      const previousIndex = previousList.findIndex(item => item.id === previousMovie.id);
+      if (previousIndex !== -1) {
+        previousList.splice(previousIndex, 1);
+      }
+    }
+  }
+
+  const indexedMovie: IndexedMovie = {
+    ...movie,
+    normalizedTitle: normalizeTitle(movie.title),
+  };
+
+  if (indexedMovie.tmdb_id) {
+    indexes.byTmdbId.set(indexedMovie.tmdb_id, indexedMovie);
+  }
+
+  const nextList = indexes.byType.get(indexedMovie.type as MediaType);
+  if (nextList) {
+    const existingIndex = nextList.findIndex(item => item.id === indexedMovie.id);
+    if (existingIndex !== -1) {
+      nextList.splice(existingIndex, 1, indexedMovie);
+    } else {
+      nextList.push(indexedMovie);
+    }
+  }
+}
+
+async function fetchSearchCandidates(
+  mediaType: MediaType,
+  strategy: string
+): Promise<TMDbMovie[]> {
+  const searchResult = mediaType === 'movie'
+    ? await tmdbAPI.searchMovies(strategy)
+    : await tmdbAPI.searchTVShows(strategy);
+
+  const results = searchResult.data?.results || [];
+  return results.slice(0, SEARCH_RESULT_LIMIT);
+}
+
+async function fetchMatchedDetail(
+  mediaType: MediaType,
+  result: TMDbMovie
+): Promise<TMDbMovieDetail | null> {
+  const detailResponse = mediaType === 'movie'
+    ? await tmdbAPI.getMovieDetails(result.id)
+    : await tmdbAPI.getTVDetails(result.id);
+
+  if (!detailResponse.success || !detailResponse.data) {
+    return null;
+  }
+
+  return detailResponse.data;
+}
+
+async function matchTmdbRecord(
+  movie: DoubanMovie,
+  addLog: (type: ImportLog['type'], message: string) => Promise<void>,
+  enableTitleCleaning: boolean
+): Promise<MatchedDetail | null> {
+  const strategies = buildSearchStrategies(movie, enableTitleCleaning);
+  const preferredTypes: MediaType[] = movie.type_ === 'movie'
+    ? ['movie', 'tv']
+    : ['tv', 'movie'];
+
+  let bestMatch: MatchedDetail | null = null;
+
+  for (const mediaType of preferredTypes) {
+    for (const strategy of strategies) {
+      const candidates = await fetchSearchCandidates(mediaType, strategy);
+
+      if (candidates.length === 0) {
+        continue;
+      }
+
+      for (const result of candidates) {
+        const score = Math.max(
+          calculateRelevanceScore(movie.title, result),
+          movie.original_title ? calculateRelevanceScore(movie.original_title, result) : 0,
+          strategy !== movie.title ? calculateRelevanceScore(strategy, result) : 0
+        );
+
+        if (score < MATCH_SCORE_THRESHOLD) {
+          continue;
+        }
+
+        if (!bestMatch || score > bestMatch.score) {
+          const detail = await fetchMatchedDetail(mediaType, result);
+          if (!detail) {
+            continue;
+          }
+
+          bestMatch = {
+            mediaType,
+            detail,
+            result,
+            strategy,
+            score,
+          };
+        }
+
+        if (bestMatch && bestMatch.score >= HIGH_CONFIDENCE_SCORE) {
+          return bestMatch;
+        }
+      }
+    }
+  }
+
+  if (!bestMatch) {
+    await addLog(
+      'warning',
+      `TMDb未命中: "${movie.title}" - 已尝试 ${strategies.length} 个搜索策略与跨类型兜底`
+    );
+    return null;
+  }
+
+  if (bestMatch.score < MATCH_SCORE_THRESHOLD) {
+    await addLog(
+      'warning',
+      `TMDb低置信度匹配被放弃: "${movie.title}" -> "${formatMatchedTitle(bestMatch.detail)}" (score=${bestMatch.score.toFixed(2)})`
+    );
+    return null;
+  }
+
+  return bestMatch;
+}
+
+function buildMoviePayload(
+  movie: DoubanMovie,
+  seasonNumber: number | null,
+  matched: MatchedDetail | null
+): Partial<Movie> {
+  if (!matched) {
+    return {
+      title: movie.title,
+      original_title: movie.original_title || movie.title,
+      type: movie.type_ === 'movie' ? 'movie' : 'tv',
+      status: 'completed',
+      personal_rating: movie.rating || null,
+      notes: movie.comment || null,
+      watched_date: movie.watched_date || undefined,
+    };
+  }
+
+  const { detail, mediaType } = matched;
+  const payload: Partial<Movie> = {
+    title: detail.title || detail.name || movie.title,
+    original_title:
+      detail.original_title ||
+      detail.original_name ||
+      movie.original_title ||
+      detail.title ||
+      detail.name ||
+      movie.title,
+    overview: detail.overview,
+    poster_path: detail.poster_path,
+    backdrop_path: detail.backdrop_path,
+    tmdb_id: detail.id,
+    tmdb_rating: detail.vote_average,
+    year: new Date(detail.release_date || detail.first_air_date || '').getFullYear() || null,
+    runtime: detail.runtime || toArray(detail.episode_run_time)[0] || null,
+    genres: detail.genres?.map(genre => genre.name) || [],
+    type: mediaType,
+    status: 'completed',
+    personal_rating: movie.rating || null,
+    notes: movie.comment || null,
+    watched_date: movie.watched_date || undefined,
+  };
+
+  if (mediaType === 'tv') {
+    payload.total_seasons = detail.number_of_seasons || null;
+    payload.total_episodes = detail.number_of_episodes || null;
+    payload.seasons_data = buildSeasonsDataFromTmdb(detail.seasons);
+    payload.air_status = normalizeAirStatus(detail.status);
+    payload.current_season =
+      seasonNumber ??
+      (detail.number_of_seasons === 1 ? 1 : payload.current_season);
+  }
+
+  return normalizeProgressForStatus(payload);
+}
+
+function buildMergePayload(
+  existingMovie: Movie,
+  movie: DoubanMovie,
+  seasonNumber: number | null,
+  matched: MatchedDetail | null
+): UpdateMovieForm {
+  const tmdbPayload = buildMoviePayload(movie, seasonNumber, matched);
+  const mergedNotes = mergeNotes(existingMovie.notes, movie.comment);
+  const mergedWatchedDate = getPreferredWatchedDate(movie, existingMovie);
+  const mergedRating = getPreferredRating(movie, existingMovie);
+  const nextCurrentSeason =
+    seasonNumber && seasonNumber > (existingMovie.current_season || 0)
+      ? seasonNumber
+      : existingMovie.current_season;
+
+  const mergedPayload: UpdateMovieForm = {
+    id: existingMovie.id,
+    title: matched ? (tmdbPayload.title || existingMovie.title) : existingMovie.title,
+    status: existingMovie.status === 'completed' ? 'completed' : 'completed',
+    personal_rating: mergedRating,
+    notes: mergedNotes,
+    watch_source: existingMovie.watch_source || undefined,
+    watched_date: mergedWatchedDate,
+    current_episode: existingMovie.current_episode,
+    current_season: nextCurrentSeason,
+  };
+
+  if (matched) {
+    mergedPayload.title = tmdbPayload.title || existingMovie.title;
+    mergedPayload.overview = tmdbPayload.overview || existingMovie.overview || undefined;
+    mergedPayload.poster_path = tmdbPayload.poster_path || existingMovie.poster_path || undefined;
+    mergedPayload.backdrop_path = tmdbPayload.backdrop_path || existingMovie.backdrop_path || undefined;
+    mergedPayload.year = tmdbPayload.year ?? existingMovie.year ?? undefined;
+    mergedPayload.tmdb_rating = tmdbPayload.tmdb_rating ?? existingMovie.tmdb_rating ?? undefined;
+    mergedPayload.runtime = tmdbPayload.runtime ?? existingMovie.runtime ?? undefined;
+    mergedPayload.genres = (tmdbPayload.genres as string[] | undefined) || existingMovie.genres;
+    mergedPayload.total_episodes = tmdbPayload.total_episodes ?? existingMovie.total_episodes ?? undefined;
+    mergedPayload.total_seasons = tmdbPayload.total_seasons ?? existingMovie.total_seasons ?? undefined;
+    mergedPayload.air_status = tmdbPayload.air_status || existingMovie.air_status;
+    mergedPayload.tmdb_id = tmdbPayload.tmdb_id ?? existingMovie.tmdb_id ?? undefined;
+    mergedPayload.original_title =
+      (tmdbPayload.original_title as string | undefined) ||
+      existingMovie.original_title;
+  }
+
+  return normalizeProgressForStatus(mergedPayload);
+}
+
+function describeMerge(existingMovie: Movie, nextPayload: UpdateMovieForm): string {
+  const changes: string[] = [];
+
+  if (nextPayload.current_season && nextPayload.current_season !== existingMovie.current_season) {
+    changes.push(`季数 ${existingMovie.current_season || 0} -> ${nextPayload.current_season}`);
+  }
+
+  if (nextPayload.personal_rating && nextPayload.personal_rating !== existingMovie.personal_rating) {
+    changes.push(`评分 -> ${nextPayload.personal_rating}`);
+  }
+
+  if (nextPayload.watched_date && nextPayload.watched_date !== existingMovie.watched_date) {
+    changes.push(`观看日期 -> ${nextPayload.watched_date}`);
+  }
+
+  if (nextPayload.notes && nextPayload.notes !== existingMovie.notes) {
+    changes.push('合并评语');
+  }
+
+  if (nextPayload.tmdb_id && nextPayload.tmdb_id !== existingMovie.tmdb_id) {
+    changes.push(`补齐 TMDb ID ${nextPayload.tmdb_id}`);
+  }
+
+  return changes.join('，');
+}
+
+function decideImportOperation(
+  movie: DoubanMovie,
+  indexes: ReturnType<typeof buildMovieIndexes>,
+  seasonNumber: number | null,
+  matched: MatchedDetail | null
+): ImportOperation {
+  const matchedExisting = matched?.detail.id
+    ? indexes.byTmdbId.get(matched.detail.id)
+    : undefined;
+
+  const fallbackType: MediaType = matched?.mediaType ?? (movie.type_ === 'movie' ? 'movie' : 'tv');
+  const fallbackExisting = findExistingByTitle(indexes, movie.title, fallbackType);
+
+  const existingMovie = matchedExisting || fallbackExisting;
+
+  if (existingMovie) {
+    const mergePayload = buildMergePayload(existingMovie, movie, seasonNumber, matched);
+    const mergeSummary = describeMerge(existingMovie, mergePayload);
+
+    if (!mergeSummary) {
+      return {
+        kind: 'skip',
+        message: `跳过 "${movie.title}" - 已存在且无可合并的新信息`,
+      };
+    }
+
+    return {
+      kind: 'merge',
+      payload: mergePayload,
+      message: `合并更新 "${existingMovie.title}" - ${mergeSummary}`,
+      logType: 'info',
+    };
+  }
+
+  if (!matched) {
+    return {
+      kind: 'skip',
+      message: `跳过 "${movie.title}" - 未找到可接受的 TMDb 匹配`,
+    };
+  }
+
+  return {
+    kind: 'insert',
+    payload: buildMoviePayload(movie, seasonNumber, matched),
+    message: `成功匹配 TMDb: "${movie.title}" -> "${formatMatchedTitle(matched.detail)}" (score=${matched.score.toFixed(2)}, strategy="${matched.strategy}")`,
+  };
 }
 
 /**
- * 检查电影或电视剧是否已存在
- * @param title 标题
- * @param type 类型
- * @param tmdbId TMDb ID
- * @returns 是否存在，以及相关数据
- */
-const checkExistingMedia = async (
-  title: string,
-  type: string,
-  tmdbId?: number
-): Promise<{ exists: boolean; data?: Movie }> => {
-  try {
-    // 获取所有影视作品
-    const result = await databaseAPI.getMovies();
-    if (!result.success) {
-      return { exists: false };
-    }
-
-    const movies = result.data;
-
-    // 首先通过TMDb ID匹配（如果有）
-    if (tmdbId) {
-      const existingByTmdbId = movies.find((movie) => movie.tmdb_id === tmdbId);
-
-      if (existingByTmdbId) {
-        return { exists: true, data: existingByTmdbId };
-      }
-    }
-
-    // 通过标题和类型匹配
-    const cleanedTitle = cleanTitle(title).toLowerCase();
-    const existingByTitle = movies.find(
-      (movie) =>
-        movie.type === type &&
-        (cleanTitle(movie.title).toLowerCase() === cleanedTitle ||
-          calculateTitleSimilarity(movie.title, title) > 0.8)
-    );
-
-    if (existingByTitle) {
-      return { exists: true, data: existingByTitle };
-    }
-
-    return { exists: false };
-  } catch (error) {
-    console.error('检查影视作品是否存在失败:', error);
-    return { exists: false };
-  }
-};
-
-/**
- * 豆瓣导入Hook
+ * 豆瓣导入 Hook
  */
 export function useDoubanImport() {
-  // 豆瓣用户ID
   const doubanUserId = ref('');
-
-  // 导入状态
   const isImporting = ref(false);
-
-  // 导入设置
   const importSettings = ref<ImportSettings>({
     enableTitleCleaning: true,
     enableTMDbMatching: true,
   });
-
-  // 导入进度
   const importProgress = ref<ImportProgress>({
     total: 0,
     current: 0,
@@ -155,17 +554,11 @@ export function useDoubanImport() {
     processed: 0,
     matched: 0,
   });
-
-  // 导入日志
   const importLogs = ref<ImportLog[]>([]);
-
-  // 是否应该停止导入
   const shouldStop = ref(false);
-
-  // 导入会话ID
   const importSessionId = ref<string>('');
+  const movieStore = useMovieStore();
 
-  // 添加日志
   const addLog = async (type: ImportLog['type'], message: string) => {
     importLogs.value.push({
       type,
@@ -173,7 +566,6 @@ export function useDoubanImport() {
       timestamp: Date.now(),
     });
 
-    // 写入日志文件
     try {
       const logMessage = `[${type.toUpperCase()}] ${message}`;
       await invoke('write_douban_import_log', {
@@ -185,7 +577,6 @@ export function useDoubanImport() {
     }
   };
 
-  // 重置导入状态
   const resetImport = () => {
     importProgress.value = {
       total: 0,
@@ -198,14 +589,12 @@ export function useDoubanImport() {
     };
     importLogs.value = [];
     shouldStop.value = false;
-    // 生成新的会话ID
     importSessionId.value = new Date()
       .toISOString()
       .replace(/[:.]/g, '-')
       .slice(0, 19);
   };
 
-  // 开始导入
   const startDoubanImport = async () => {
     if (isImporting.value) return;
 
@@ -213,385 +602,125 @@ export function useDoubanImport() {
     isImporting.value = true;
 
     try {
-      // 估算电影数量
-      await addLog(
-        'info',
-        `正在获取豆瓣用户 ${doubanUserId.value} 的电影数量...`
-      );
+      await addLog('info', `正在获取豆瓣用户 ${doubanUserId.value} 的电影数量...`);
       const movieCount = await invoke<number>('estimate_douban_movie_count', {
         userId: doubanUserId.value,
       });
 
       if (movieCount === 0) {
         await addLog('error', '未找到电影数据，请检查豆瓣用户ID是否正确');
-        isImporting.value = false;
         return;
       }
 
       importProgress.value.total = movieCount;
       await addLog('info', `找到 ${movieCount} 部电影/电视剧，开始导入...`);
 
+      const localMoviesResponse = await databaseAPI.getMovies();
+      if (!localMoviesResponse.success || !localMoviesResponse.data) {
+        throw new Error(localMoviesResponse.error || '读取本地影视库失败');
+      }
+
+      const indexes = buildMovieIndexes(localMoviesResponse.data);
       let start = 0;
 
       while (start < movieCount && !shouldStop.value) {
-        // 获取一批电影
-        const movies = await invoke<DoubanMovie[]>('fetch_douban_movies', {
+        const doubanMovies = await invoke<DoubanMovie[]>('fetch_douban_movies', {
           userId: doubanUserId.value,
           start,
         });
 
-        if (movies.length === 0) break;
+        if (doubanMovies.length === 0) {
+          break;
+        }
 
-        // 处理每部电影
-        for (const movie of movies) {
+        for (const movie of doubanMovies) {
           if (shouldStop.value) break;
 
           importProgress.value.current++;
           importProgress.value.processed++;
 
           try {
-            // 提取季数信息（如果是电视剧）
             const seasonNumber = extractSeasonNumber(movie.title);
+            const matched = importSettings.value.enableTMDbMatching
+              ? await matchTmdbRecord(movie, addLog, importSettings.value.enableTitleCleaning)
+              : null;
 
-            // 获取基础剧名（不含季数）
-            const baseTitle = extractBaseTVShowTitle(movie.title);
+            if (matched) {
+              importProgress.value.matched++;
+            }
 
-            // 清理标题（如果启用）
-            let searchTitle = baseTitle;
+            const operation = decideImportOperation(movie, indexes, seasonNumber, matched);
 
-            // 首先检查影视作品是否已存在（无论电影还是电视剧）
-            const existingMedia = await checkExistingMedia(
-              movie.title,
-              movie.type_ === 'movie' ? 'movie' : 'tv'
-            );
-
-            // 如果是电影且已存在，直接跳过
-            if (movie.type_ === 'movie' && existingMedia.exists) {
-              await addLog(
-                'skip',
-                `跳过电影 "${movie.title}" - 已存在于数据库`
-              );
+            if (operation.kind === 'skip') {
               importProgress.value.skipped++;
+              await addLog('skip', operation.message);
               continue;
             }
 
-            // 如果是电视剧且已存在
-            if (
-              movie.type_ === 'tv' &&
-              existingMedia.exists &&
-              existingMedia.data
-            ) {
-              const existingTVShow = existingMedia.data;
+            if (operation.kind === 'merge') {
+              const existingMovie = localMoviesResponse.data.find(item => item.id === operation.payload.id);
+              const result = await databaseAPI.updateMovie(operation.payload);
 
-              // 如果有季数信息，只更新季数（不更新评分和其他信息）
-              if (
-                seasonNumber &&
-                seasonNumber > (existingTVShow.current_season || 0)
-              ) {
-                addLog(
-                  'info',
-                  `更新电视剧"${existingTVShow.title}"的季数: ${
-                    existingTVShow.current_season || 0
-                  } -> ${seasonNumber}`
+              if (!result.success || !result.data) {
+                importProgress.value.failed++;
+                await addLog(
+                  'error',
+                  `合并失败: "${movie.title}" - ${result.error || '更新数据库失败'}`
                 );
-
-                // 更新季数，但保留其他信息
-                await databaseAPI.updateMovie({
-                  ...existingTVShow,
-                  current_season: seasonNumber,
-                  date_updated: new Date().toISOString(),
-                  updated_at: new Date().toISOString(),
-                });
-
-                importProgress.value.success++;
-                addLog(
-                  'success',
-                  `成功更新: "${existingTVShow.title}" 的季数为 ${seasonNumber}`
-                );
-              } else {
-                addLog(
-                  'skip',
-                  `跳过电视剧 "${movie.title}" - 已存在于数据库${
-                    seasonNumber
-                      ? `，且现有季数(${
-                          existingTVShow.current_season || 0
-                        })已大于或等于导入季数(${seasonNumber})`
-                      : ''
-                  }`
-                );
-                importProgress.value.skipped++;
+                continue;
               }
 
-              continue; // 跳过后续处理
-            }
-
-            // 如果是新电影/电视剧，尝试匹配TMDb数据
-            let tmdbData = null;
-            let tmdbMatched = false;
-
-            // 根据类型搜索
-            const searchMethod =
-              movie.type_ === 'movie'
-                ? tmdbAPI.searchMovies.bind(tmdbAPI)
-                : tmdbAPI.searchTVShows.bind(tmdbAPI);
-
-            try {
-              await addLog(
-                'info',
-                `TMDb搜索: "${movie.title}" -> 搜索标题: "${searchTitle}"`
-              );
-
-              const searchResult = await searchMethod(searchTitle);
-
-              if (
-                searchResult.success &&
-                searchResult.data &&
-                searchResult.data.results &&
-                searchResult.data.results.length > 0
-              ) {
-                // 获取详细信息
-                const detailMethod =
-                  movie.type_ === 'movie'
-                    ? tmdbAPI.getMovieDetails.bind(tmdbAPI)
-                    : tmdbAPI.getTVDetails.bind(tmdbAPI);
-
-                const detailResult = await detailMethod(
-                  searchResult.data.results[0].id
-                );
-
-                if (detailResult.success && detailResult.data) {
-                  tmdbData = detailResult.data;
-
-                  // 再次检查是否存在相同的TMDb ID
-                  const existingByTmdbId = await checkExistingMedia(
-                    movie.title,
-                    movie.type_ === 'movie' ? 'movie' : 'tv',
-                    tmdbData.id
-                  );
-                  if (existingByTmdbId.exists && existingByTmdbId.data) {
-                    // 如果是电影，直接跳过
-                    if (movie.type_ === 'movie') {
-                      addLog(
-                        'skip',
-                        `跳过电影 "${movie.title}" - 已存在相同TMDb ID的电影: "${existingByTmdbId.data.title}"`
-                      );
-                      importProgress.value.skipped++;
-                      continue;
-                    }
-
-                    // 如果是电视剧，只更新季数
-                    if (movie.type_ === 'tv') {
-                      const existingTVShow = existingByTmdbId.data;
-
-                      // 如果有季数信息，只更新季数（不更新评分和其他信息）
-                      if (
-                        seasonNumber &&
-                        seasonNumber > (existingTVShow.current_season || 0)
-                      ) {
-                        addLog(
-                          'info',
-                          `更新电视剧"${existingTVShow.title}"的季数: ${
-                            existingTVShow.current_season || 0
-                          } -> ${seasonNumber}`
-                        );
-
-                        // 更新季数，但保留其他信息（包括日期）
-                        await databaseAPI.updateMovie({
-                          ...existingTVShow,
-                          current_season: seasonNumber,
-                          // 不更新 date_updated 和 updated_at，保持原有日期
-                        });
-
-                        importProgress.value.success++;
-                        addLog(
-                          'success',
-                          `成功更新: "${existingTVShow.title}" 的季数为 ${seasonNumber}`
-                        );
-                      } else {
-                        addLog(
-                          'skip',
-                          `跳过电视剧 "${movie.title}" - 已存在相同TMDb ID的电视剧: "${existingTVShow.title}"`
-                        );
-                        importProgress.value.skipped++;
-                      }
-
-                      continue; // 跳过后续处理
-                    }
-                  }
-
-                  tmdbMatched = true;
-                  importProgress.value.matched++;
-                  addLog(
-                    'success',
-                    `成功匹配TMDb数据: "${movie.title}" -> "${
-                      tmdbData.title || tmdbData.name
-                    }"`
-                  );
-                }
-              }
-            } catch (error) {
-              console.error('TMDb搜索失败:', error);
-              await addLog(
-                'warning',
-                `TMDb搜索失败: "${movie.title}" (搜索标题: "${searchTitle}") - ${error}`
-              );
-            }
-
-            // 准备要保存的数据
-            let movieData: Record<string, unknown> = {};
-
-            if (tmdbMatched && tmdbData) {
-              // 使用TMDb数据，但保留指定字段
-              const preservedData: Record<string, unknown> = {};
-
-              // 处理评分
-              if (movie.rating) {
-                preservedData.personal_rating = movie.rating || 0;
-              }
-
-              // 处理观看日期
-              if (movie.watched_date) {
-                preservedData.watched_date = movie.watched_date;
-              }
-
-              // 处理评语
-              if (movie.comment) {
-                preservedData.notes = movie.comment;
-              }
-
-              // 处理季数
-              if (seasonNumber && movie.type_ === 'tv') {
-                preservedData.current_season = seasonNumber;
-              }
-
-              // 从TMDb转换数据
-              movieData = {
-                title: tmdbData.title || tmdbData.name,
-                original_title:
-                  tmdbData.original_title ||
-                  tmdbData.original_name ||
-                  tmdbData.title ||
-                  tmdbData.name,
-                overview: tmdbData.overview,
-                poster_path: tmdbData.poster_path,
-                backdrop_path: tmdbData.backdrop_path,
-                tmdb_id: tmdbData.id,
-                tmdb_rating: tmdbData.vote_average,
-                year:
-                  new Date(
-                    tmdbData.release_date || tmdbData.first_air_date || ''
-                  ).getFullYear() || null,
-                runtime:
-                  tmdbData.runtime ||
-                  (tmdbData.episode_run_time
-                    ? tmdbData.episode_run_time[0]
-                    : null),
-                genres: tmdbData.genres
-                  ? tmdbData.genres.map((g: { name: string }) => g.name).join(',')
-                  : '',
-                type: movie.type_ === 'movie' ? 'movie' : 'tv',
-                status: 'completed', // 默认为已看
-                personal_rating: movie.rating || 0,
-                user_rating: movie.rating || 0,
-                // 字段设置规则：
-                // date_added: 初次观看时间（豆瓣观看日期）
-                // date_updated: 每次更新影视信息时间（当前时间）
-                // created_at: 添加到数据库时间（当前时间，不可修改）
-                // updated_at: 数据库记录更新时间（当前时间）
-                date_added: movie.watched_date || new Date().toISOString(),
-                date_updated: movie.watched_date || new Date().toISOString(),
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-                watched_date: movie.watched_date,
-                notes: movie.comment || '',
-              };
-
-              // 处理剧集特定字段
-              if (movie.type_ === 'tv' && tmdbData.number_of_seasons) {
-                movieData.total_seasons = tmdbData.number_of_seasons;
-                movieData.total_episodes = tmdbData.number_of_episodes;
-                movieData.air_status = tmdbData.status;
-
-                // 如果没有从豆瓣标题中提取到季数，但是是单季剧集，设置为第1季
-                if (
-                  !movieData.current_season &&
-                  tmdbData.number_of_seasons === 1
-                ) {
-                  movieData.current_season = 1;
-                }
-
-                // 已完成的剧集，设置当前集数为最后一集
-                if (
-                  movieData.status === 'completed' &&
-                  tmdbData.number_of_episodes
-                ) {
-                  movieData.current_episode = tmdbData.number_of_episodes;
-                }
-
-                // 如果没有设置当前集数但状态是已完成，设置为最后一集
-                if (
-                  movieData.status === 'completed' &&
-                  !movieData.current_episode &&
-                  tmdbData.number_of_episodes
-                ) {
-                  movieData.current_episode = tmdbData.number_of_episodes;
-                }
-              }
-            } else {
-              // 未找到TMDb匹配，加入失败列表
-              importProgress.value.failed++;
-              await addLog(
-                'error',
-                `未找到TMDb匹配: "${movie.title}" (搜索标题: "${searchTitle}"), 跳过导入`
-              );
-              continue; // 跳过这个电影，不进行数据库插入
-            }
-
-            // 添加到数据库
-            const result = await databaseAPI.addMovie(movieData);
-
-            if (result.success) {
+              updateIndexes(indexes, result.data, existingMovie);
               importProgress.value.success++;
-              await addLog('success', `成功导入: "${movieData.title}"`);
-            } else {
+              await addLog(operation.logType || 'success', operation.message);
+              continue;
+            }
+
+            await addLog('info', operation.message);
+            const result = await databaseAPI.addMovie(operation.payload);
+
+            if (!result.success || !result.data) {
               importProgress.value.failed++;
               await addLog(
                 'error',
-                `导入失败: "${movieData.title}" - ${result.error}`
+                `导入失败: "${movie.title}" - ${result.error || '写入数据库失败'}`
               );
+              continue;
             }
+
+            updateIndexes(indexes, result.data);
+            importProgress.value.success++;
+            await addLog('success', `成功导入: "${result.data.title}"`);
           } catch (error) {
             importProgress.value.failed++;
-            addLog('error', `处理失败: "${movie.title}" - ${error}`);
+            await addLog('error', `处理失败: "${movie.title}" - ${error}`);
           }
         }
 
-        // 更新开始索引
-        start += movies.length;
+        start += doubanMovies.length;
       }
 
       if (shouldStop.value) {
-        addLog('warning', '导入已手动停止');
+        await addLog('warning', '导入已手动停止');
       } else {
-        addLog(
+        await movieStore.fetchMovies({ force: true });
+        await addLog(
           'success',
           `导入完成! 成功: ${importProgress.value.success}, 跳过: ${importProgress.value.skipped}, 失败: ${importProgress.value.failed}`
         );
       }
     } catch (error) {
-      addLog('error', `导入过程出错: ${error}`);
+      await addLog('error', `导入过程出错: ${error}`);
     } finally {
       isImporting.value = false;
     }
   };
 
-  // 停止导入
   const stopImport = () => {
     shouldStop.value = true;
-    addLog('warning', '正在停止导入...');
+    void addLog('warning', '正在停止导入...');
   };
 
-  // 更新导入设置
   const updateImportSettings = (settings: Partial<ImportSettings>) => {
     importSettings.value = { ...importSettings.value, ...settings };
   };

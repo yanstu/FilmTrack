@@ -90,43 +90,33 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { Movie } from '../../../types';
-import type { WatchProgress, WatchProgressProps } from '../types';
+import type { WatchProgressProps } from '../types';
+import {
+  clampEpisodeForSeason,
+  getNormalizedProgress,
+  getSeasonOptions
+} from '../../../utils/seasonProgress';
 
 const props = defineProps<WatchProgressProps>();
 
 // 判断是否为单季电视剧
 const isSingleSeason = computed(() => {
-  if (props.movie.type !== 'tv') {
-    return false;
-  }
-  
-  // 通过total_seasons判断
-  if (props.movie.total_seasons && props.movie.total_seasons === 1) {
-    return true;
-  }
-  
-  // 通过seasons_data判断
-  if (props.movie.seasons_data) {
-    const seasonCount = Object.keys(props.movie.seasons_data).length;
-    return seasonCount === 1;
-  }
-  
-  return false;
+  return getSeasonOptions(props.movie.seasons_data, props.movie.total_seasons).length <= 1;
 });
 
 // 计算当前季进度
 const currentSeasonProgress = computed(() => {
-  if (props.movie.type !== 'tv' || !props.movie.seasons_data || !props.movie.current_season) {
+  if (props.movie.type !== 'tv') {
     return null;
   }
 
-  const currentSeasonData = props.movie.seasons_data[props.movie.current_season.toString()];
+  const normalized = getNormalizedProgress(props.movie);
+  const currentSeasonData = props.movie.seasons_data?.[normalized.season.toString()];
   if (!currentSeasonData) {
     return null;
   }
 
-  const current = props.movie.current_episode || 0;
+  const current = clampEpisodeForSeason(props.movie, normalized.season, normalized.episode);
   const total = currentSeasonData.episode_count;
   const percentage = total > 0 ? Math.round((current / total) * 100) : 0;
 

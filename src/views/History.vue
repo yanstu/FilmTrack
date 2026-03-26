@@ -102,7 +102,7 @@
                         </div>
                         <div v-if="movie.total_episodes" class="progress-bar">
                           <div class="progress-fill"
-                            :style="{ width: `${(getTotalWatchedEpisodes(movie) / movie.total_episodes) * 100}%` }"></div>
+                            :style="{ width: `${getWatchProgress(movie)}%` }"></div>
                         </div>
                       </div>
 
@@ -176,189 +176,30 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
-import { useMovieStore } from '../stores/movie';
-import { useInfiniteScroll } from '../composables/useInfiniteScroll';
-import { databaseAPI } from '../services/database-api';
-import { tmdbAPI } from '../utils/api';
 import { formatRating, getTypeLabel, getStatusLabel, getStatusBadgeClass } from '../utils/constants';
-import { APP_CONFIG } from '../../config/app.config';
-import type { Movie } from '../types';
 import CachedImage from '../components/ui/CachedImage.vue';
+import { useHistoryData } from './History/composables/useHistoryData';
+import { useHistoryView } from './History/composables/useHistoryView';
 
-const router = useRouter();
-const movieStore = useMovieStore();
-
-// 统计数据（从store获取，不影响无限滚动）
-const stats = computed(() => {
-  const movies = movieStore.movies;
-  const completed = movies.filter(m => m.status === 'completed');
-  const watching = movies.filter(m => m.status === 'watching');
-  const ratings = movies.filter(m => m.personal_rating && m.personal_rating > 0).map(m => m.personal_rating!);
-
-  return {
-    total: movies.length,
-    completed: completed.length,
-    watching: watching.length,
-    avgRating: ratings.length > 0 ? ratings.reduce((a, b) => a + b, 0) / ratings.length : 0
-  };
-});
-
-// 无限滚动数据加载函数
-const loadMoviesPage = async (page: number, pageSize: number) => {
-  try {
-    const offset = (page - 1) * pageSize;
-
-    // 首先获取总数
-    const totalResult = await databaseAPI.getMovies();
-    if (!totalResult.success || !totalResult.data) {
-      throw new Error(totalResult.error || '获取数据失败');
-    }
-    const totalCount = totalResult.data.length;
-
-    // 使用数据库API获取分页数据（已按updated_at DESC排序）
-    const result = await databaseAPI.getMovies(undefined, pageSize, offset);
-    if (!result.success || !result.data) {
-      throw new Error(result.error || '获取数据失败');
-    }
-
-    const hasMore = offset + pageSize < totalCount;
-
-    return {
-      data: result.data,
-      hasMore,
-      total: totalCount
-    };
-  } catch (error) {
-    console.error('加载历史数据失败:', error);
-    throw error;
-  }
-};
-
-// 使用无限滚动
 const {
+  stats,
   items: movies,
   loading,
   error: loadError,
   hasMore,
   isEmpty,
   refresh
-} = useInfiniteScroll(loadMoviesPage, {
-  pageSize: 20,
-  threshold: 200,
-  immediate: false,
-  container: '#scroll-container'
-});
+} = useHistoryData();
 
-// 计算分组数据
-const groupedMovies = computed(() => {
-  const groups: { [key: string]: Movie[] } = {};
+const {
+  groupedMovies,
+  navigateToDetail,
+  getImageURL,
+  getTotalWatchedEpisodes,
+  getWatchProgress,
+  formatGroupDate
+} = useHistoryView(movies);
 
-  movies.value.forEach(movie => {
-    // 使用最后更新时间进行分组（数据库已按date_updated排序）
-    const date = new Date(movie.date_updated).toDateString();
-    if (!groups[date]) {
-      groups[date] = [];
-    }
-    groups[date].push(movie);
-  });
-
-  return Object.keys(groups)
-    .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())
-    .map(date => ({
-      date,
-      items: groups[date] // 数据库已排序，无需再次排序
-    }));
-});
-
-// 方法
-const navigateToDetail = (id: string) => {
-  router.push({ name: 'Detail', params: { id } });
-};
-
-const getImageURL = (path: string | undefined) => {
-  return tmdbAPI.getImageURL(path);
-};
-
-const handleImageError = (event: Event) => {
-  const target = event.target as HTMLImageElement;
-  target.src = '/placeholder-poster.svg';
-};
-
-
-
-// 获取累计观看集数（与首页逻辑一致）
-const getTotalWatchedEpisodes = (movie: Movie) => {
-  if (!movie || movie.type !== 'tv') return 0;
-
-  let totalWatchedEpisodes = 0;
-
-  if (movie.seasons_data && movie.current_season) {
-    // 使用seasons_data计算累计集数
-    const seasons = Object.values(movie.seasons_data)
-      .sort((a, b) => a.season_number - b.season_number);
-
-    for (const season of seasons) {
-      if (season.season_number < movie.current_season) {
-        // 前面的季全部看完
-        totalWatchedEpisodes += season.episode_count;
-      } else if (season.season_number === movie.current_season) {
-        // 当前季看了部分
-        totalWatchedEpisodes += movie.current_episode || 0;
-        break;
-      }
-    }
-  } else {
-    // 回退到传统方式
-    totalWatchedEpisodes = movie.current_episode || 0;
-  }
-
-  return totalWatchedEpisodes;
-};
-
-const formatGroupDate = (dateString: string) => {
-  const date = new Date(dateString);
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-
-  if (date.toDateString() === today.toDateString()) {
-    return '今天';
-  } else if (date.toDateString() === yesterday.toDateString()) {
-    return '昨天';
-  } else {
-    // 检查是否是今年
-    const isCurrentYear = date.getFullYear() === today.getFullYear();
-
-    if (isCurrentYear) {
-      // 今年的日期不显示年份
-      return date.toLocaleDateString('zh-CN', {
-        month: 'long',
-        day: 'numeric',
-        weekday: 'long'
-      });
-    } else {
-      // 非今年的日期显示年份
-      return date.toLocaleDateString('zh-CN', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        weekday: 'long'
-      });
-    }
-  }
-};
-
-// 初始化
-onMounted(async () => {
-  try {
-    // 只加载统计数据，历史数据通过无限滚动加载
-    await movieStore.fetchMovies();
-  } catch (error) {
-    console.error('加载统计数据失败:', error);
-  }
-});
 </script>
 
 <style scoped>

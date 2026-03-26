@@ -182,7 +182,7 @@
         
         <div v-else-if="watchingError" class="text-center py-12">
           <p class="text-red-600 mb-4">{{ watchingError }}</p>
-          <button @click="loadWatchingMovies" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+          <button @click="() => loadWatchingMovies()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
             重试
           </button>
         </div>
@@ -294,15 +294,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { useMovieStore } from '../stores/movie'
-import { tmdbAPI } from '../utils/api'
-import { databaseAPI } from '../services/database-api'
-import { tvReminderService } from '../services/reminder'
+import { onMounted } from 'vue'
 import { formatRating, getStatusLabel, getStatusBadgeClass } from '../utils/constants'
 import { APP_CONFIG } from '../../config/app.config'
-import type { Movie, Statistics, TVReminderGroup } from '../types'
 import { 
   PlusIcon,
   FilmIcon,
@@ -314,230 +308,33 @@ import {
   BellRingIcon
 } from 'lucide-vue-next'
 import CachedImage from '../components/ui/CachedImage.vue'
+import { useHomeData } from './Home/composables/useHomeData'
 
-const router = useRouter()
-const movieStore = useMovieStore()
-
-// 响应式状态
-const loadingStats = ref(true)
-const loadingWatching = ref(true)
-const loadingHistory = ref(true)
-const loadingReminders = ref(true)
-const statsError = ref('')
-const watchingError = ref('')
-const historyError = ref('')
-const reminderError = ref('')
-
-const statistics = ref<Statistics>({
-  total_movies: 0,
-  completed_movies: 0,
-  average_rating: 0,
-  movies_this_month: 0,
-  movies_this_year: 0
-})
-
-const watchingMovies = ref<Movie[]>([])
-const recentHistory = ref<Movie[]>([])
-const reminderGroups = ref<TVReminderGroup[]>([])
-
-// 方法
-const getMovieImageURL = (path: string | undefined) => {
-  return tmdbAPI.getImageURL(path);
-}
-
-const navigateToDetail = (movieId: string) => {
-  router.push(`/detail/${movieId}`)
-}
-
-// 获取累计观看集数（与详情页逻辑一致）
-const getTotalWatchedEpisodes = (movie: Movie) => {
-  if (!movie || movie.type !== 'tv') return 0;
-
-  let totalWatchedEpisodes = 0;
-
-  if (movie.seasons_data && movie.current_season) {
-    // 使用seasons_data计算累计集数
-    const seasons = Object.values(movie.seasons_data)
-      .sort((a, b) => a.season_number - b.season_number);
-
-    for (const season of seasons) {
-      if (season.season_number < movie.current_season) {
-        // 前面的季全部看完
-        totalWatchedEpisodes += season.episode_count;
-      } else if (season.season_number === movie.current_season) {
-        // 当前季看了部分
-        totalWatchedEpisodes += movie.current_episode || 0;
-        break;
-      }
-    }
-  } else {
-    // 回退到传统方式
-    totalWatchedEpisodes = movie.current_episode || 0;
-  }
-
-  return totalWatchedEpisodes;
-}
-
-const getRelativeDayLabel = (dateStr: string) => {
-  const target = new Date(dateStr)
-  if (Number.isNaN(target.getTime())) return ''
-
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const diffDays = Math.round((target.getTime() - today.getTime()) / (24 * 60 * 60 * 1000))
-
-  if (diffDays === 0) return '今天'
-  if (diffDays === 1) return '明天'
-  if (diffDays === 2) return '后天'
-  if (diffDays > 2) return `还有${diffDays}天`
-  return ''
-}
-
-const formatReminderDate = (dateStr: string) => {
-  const target = new Date(dateStr)
-  if (Number.isNaN(target.getTime())) return dateStr
-
-  const relative = getRelativeDayLabel(dateStr)
-  const readableDate = `${target.getMonth() + 1}月${target.getDate()}日`
-  const weekdayMap = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
-  const weekday = weekdayMap[target.getDay()]
-
-  return `${relative ? relative + ' · ' : ''}${readableDate}（${weekday}）`
-}
-
-const formatEpisodeLabel = (season?: number, episode?: number) => {
-  const parts = []
-  if (season) {
-    parts.push(`第${season}季`)
-  }
-  if (episode) {
-    parts.push(`第${episode}集`)
-  }
-  return parts.join(' · ') || '新集即将上线'
-}
-
-// 数据加载方法
-const loadStatistics = async () => {
-  try {
-    loadingStats.value = true
-    statsError.value = ''
-    
-    const result = await databaseAPI.getStatistics()
-    if (result.success && result.data) {
-      statistics.value = result.data
-    } else {
-      throw new Error(result.error || '获取统计数据失败')
-    }
-  } catch (error) {
-    console.error('获取统计数据失败:', error)
-    statsError.value = error instanceof Error ? error.message : '获取统计数据失败'
-  } finally {
-    loadingStats.value = false
-  }
-}
-
-interface LoadWatchingOptions {
-  silent?: boolean
-}
-
-const loadWatchingMovies = async (options: LoadWatchingOptions = {}): Promise<Movie[]> => {
-  const { silent = false } = options
-  try {
-    if (!silent) {
-      loadingWatching.value = true
-    }
-    watchingError.value = ''
-    
-    const result = await databaseAPI.getMovies('watching')
-    if (result.success && result.data) {
-      watchingMovies.value = result.data
-      return result.data
-    } else {
-      throw new Error(result.error || '获取追剧数据失败')
-    }
-  } catch (error) {
-    console.error('获取追剧数据失败:', error)
-    watchingError.value = error instanceof Error ? error.message : '获取追剧数据失败'
-    return []
-  } finally {
-    if (!silent) {
-      loadingWatching.value = false
-    }
-  }
-}
-
-const loadReplayHistory = async () => {
-  try {
-    loadingHistory.value = true
-    historyError.value = ''
-    
-    // 获取最近更新的电影作为最近观看（数据库已按date_updated排序）
-    const result = await databaseAPI.getMovies()
-    if (result.success && result.data) {
-      recentHistory.value = result.data.slice(0, 12)
-    } else {
-      throw new Error(result.error || '获取历史数据失败')
-    }
-  } catch (error) {
-    console.error('获取历史数据失败:', error)
-    historyError.value = error instanceof Error ? error.message : '获取历史数据失败'
-    recentHistory.value = [] // 确保有默认值
-  } finally {
-    loadingHistory.value = false
-  }
-}
-
-const loadUpdateReminders = async (movies?: Movie[]) => {
-  try {
-    loadingReminders.value = true
-    reminderError.value = ''
-
-    const result = await tvReminderService.getReminderGroups({ movies })
-    if (result.success && result.data) {
-      reminderGroups.value = result.data
-    } else {
-      throw new Error(result.error || '获取更新提醒失败')
-    }
-  } catch (error) {
-    console.error('获取更新提醒失败:', error)
-    reminderError.value = error instanceof Error ? error.message : '获取更新提醒失败'
-    reminderGroups.value = []
-  } finally {
-    loadingReminders.value = false
-  }
-}
-
-const refreshReminders = async () => {
-  const latestWatching = await loadWatchingMovies({ silent: true })
-  await loadUpdateReminders(latestWatching)
-}
-
-// 初始化数据
-const initializeData = async () => {
-  try {
-    // 添加超时机制，防止卡死
-    const timeout = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('数据加载超时')), 10000)
-    );
-
-    const watchingPromise = loadWatchingMovies()
-
-    await Promise.race([
-      Promise.allSettled([
-        loadStatistics(),
-        watchingPromise,
-        loadReplayHistory(),
-        watchingPromise
-          .then(data => loadUpdateReminders(data))
-          .catch(() => loadUpdateReminders())
-      ]),
-      timeout
-    ]);
-  } catch (error) {
-    console.error('数据初始化失败:', error);
-    // 即使失败也不阻塞界面
-  }
-}
+const {
+  movieStore,
+  loadingStats,
+  loadingWatching,
+  loadingHistory,
+  loadingReminders,
+  statsError,
+  watchingError,
+  historyError,
+  reminderError,
+  statistics,
+  watchingMovies,
+  recentHistory,
+  reminderGroups,
+  getMovieImageURL,
+  navigateToDetail,
+  getTotalWatchedEpisodes,
+  formatReminderDate,
+  formatEpisodeLabel,
+  loadStatistics,
+  loadWatchingMovies,
+  loadReplayHistory,
+  refreshReminders,
+  initializeData
+} = useHomeData()
 
 onMounted(() => {
   // 延迟执行，确保组件完全挂载

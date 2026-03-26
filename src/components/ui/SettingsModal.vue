@@ -33,6 +33,23 @@
             </label>
           </div>
 
+          <div class="setting-item">
+            <div class="setting-item-info">
+              <div class="setting-item-label">匿名使用统计</div>
+              <div class="setting-item-description">
+                仅发送应用启动等匿名事件，用于判断是否有人在使用，不会上传影视库、搜索词、笔记或导入内容
+              </div>
+            </div>
+            <label class="toggle-switch">
+              <input
+                type="checkbox"
+                v-model="settings.usageAnalyticsEnabled"
+                class="toggle-input"
+              />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
           <!-- 允许调整窗口大小 -->
           <div class="setting-item">
             <div class="setting-item-info">
@@ -119,12 +136,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue';
+import { ref, onMounted } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import Modal from './Modal.vue';
 import StorageService, { StorageKey } from '../../utils/storage';
+import { DEFAULT_APP_SETTINGS, mergeAppSettings } from '../../utils/appSettings';
 
-import type { SettingsModalProps, SettingsModalEmits, AppSettings, WindowSettings } from './types';
+import type { SettingsModalProps, SettingsModalEmits } from './types';
+import type { AppSettings, ModalType } from '../../types';
 
 type Props = SettingsModalProps;
 type Emits = SettingsModalEmits;
@@ -142,16 +161,23 @@ interface ApiResponse<T> {
   error?: string;
 }
 
+interface BackendWindowConfig {
+  width: number;
+  height: number;
+  x?: number | null;
+  y?: number | null;
+  min_width: number;
+  min_height: number;
+  max_width?: number | null;
+  max_height?: number | null;
+  resizable: boolean;
+}
+
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
 // 响应式状态
-const settings = ref<AppSettings>({
-  minimizeToTray: true,
-  window: {
-    resizable: true
-  }
-});
+const settings = ref<AppSettings>(mergeAppSettings());
 
 const isClearing = ref(false);
 
@@ -161,7 +187,7 @@ const dbSize = ref('计算中...');
 // 确认对话框
 const confirmDialog = ref({
   visible: false,
-  type: 'warning' as const,
+  type: 'warning' as ModalType,
   title: '',
   message: '',
   onConfirm: () => {}
@@ -170,6 +196,8 @@ const confirmDialog = ref({
 // 方法
 const handleSave = async () => {
   try {
+    settings.value.usageAnalyticsPrompted = true;
+
     // 保存到本地存储
     StorageService.set(StorageKey.SETTINGS, settings.value);
     
@@ -179,12 +207,14 @@ const handleSave = async () => {
     });
     
     // 更新窗口配置到后端配置文件
-    const windowConfigResponse = await invoke('get_window_config');
-    if (windowConfigResponse.success) {
-      const currentConfig = windowConfigResponse.data;
-      currentConfig.resizable = settings.value.window.resizable;
+    const windowConfigResponse = await invoke<ApiResponse<BackendWindowConfig>>('get_window_config');
+    if (windowConfigResponse.success && windowConfigResponse.data) {
+      const currentConfig = {
+        ...windowConfigResponse.data,
+        resizable: settings.value.window.resizable
+      };
       
-      await invoke('update_window_config', {
+      await invoke<ApiResponse<string>>('update_window_config', {
         windowConfig: currentConfig
       });
     }
@@ -278,16 +308,11 @@ const updateCacheInfo = async () => {
 const loadSettings = async () => {
   try {
     // 从本地存储加载基本设置
-    const savedSettings = StorageService.get(StorageKey.SETTINGS, {
-      minimizeToTray: true,
-      window: {
-        resizable: true
-      }
-    });
-    
-    settings.value = savedSettings;
+    const savedSettings = StorageService.get<Partial<AppSettings>>(StorageKey.SETTINGS, DEFAULT_APP_SETTINGS);
+    settings.value = mergeAppSettings(savedSettings);
   } catch (error) {
     console.error('加载设置失败:', error);
+    settings.value = mergeAppSettings();
   }
 };
 

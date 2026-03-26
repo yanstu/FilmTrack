@@ -46,11 +46,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onBeforeUnmount } from 'vue';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { invoke } from '@tauri-apps/api/core';
-import { useAppStore } from '../../stores/app';
 import StorageService, { StorageKey } from '../../utils/storage';
+import type { AppSettings } from '../../types';
+import { mergeAppSettings } from '../../utils/appSettings';
 
 const appWindow = getCurrentWindow();
 
@@ -58,12 +59,13 @@ const appWindow = getCurrentWindow();
 const appTitle = '影迹';
 
 // 应用设置
-const appSettings = ref({
-  minimizeToTray: true
-});
+const appSettings = ref<Pick<AppSettings, 'minimizeToTray'>>(mergeAppSettings());
 
 // 彩蛋动画
 const easterEggActive = ref(false);
+const handleSettingsUpdated = () => {
+  getAppSettings();
+};
 
 // 彩蛋激活函数
 const activateEasterEgg = () => {
@@ -78,19 +80,18 @@ onMounted(() => {
   getAppSettings();
 
   // 监听设置变化
-  window.addEventListener('settings-updated', () => {
-    getAppSettings();
-  });
+  window.addEventListener('settings-updated', handleSettingsUpdated);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('settings-updated', handleSettingsUpdated);
 });
 
 // 获取应用设置
 const getAppSettings = () => {
-  const savedSettings = StorageService.get(StorageKey.SETTINGS);
-  if (savedSettings && typeof savedSettings === 'object') {
-    if ('minimizeToTray' in savedSettings) {
-      appSettings.value.minimizeToTray = savedSettings.minimizeToTray;
-    }
-  }
+  const savedSettings = StorageService.get<Partial<AppSettings>>(StorageKey.SETTINGS);
+  const mergedSettings = mergeAppSettings(savedSettings);
+  appSettings.value.minimizeToTray = mergedSettings.minimizeToTray;
   return appSettings.value;
 };
 
