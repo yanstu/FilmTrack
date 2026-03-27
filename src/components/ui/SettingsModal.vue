@@ -81,31 +81,17 @@
                   <div class="setting-item-label">最小化到系统托盘</div>
                   <div class="setting-item-description">关闭窗口时最小化到系统托盘而不是退出应用</div>
                 </div>
-                <label class="toggle-switch">
-                  <input
-                    type="checkbox"
-                    v-model="settings.minimizeToTray"
-                    class="toggle-input"
-                  />
-                  <span class="toggle-slider"></span>
-                </label>
+                <ToggleSwitch v-model="settings.minimizeToTray" />
               </div>
 
               <div class="setting-item">
                 <div class="setting-item-info">
                   <div class="setting-item-label">匿名使用统计</div>
-                  <div class="setting-item-description">
-                    仅发送应用启动等匿名事件，用于判断是否有人在使用，不会上传影视库、搜索词、笔记或导入内容
-                  </div>
+                <div class="setting-item-description">
+                  仅发送应用启动等匿名事件，用于判断是否有人在使用，不会上传影视库、搜索词、笔记或导入内容
                 </div>
-                <label class="toggle-switch">
-                  <input
-                    type="checkbox"
-                    v-model="settings.usageAnalyticsEnabled"
-                    class="toggle-input"
-                  />
-                  <span class="toggle-slider"></span>
-                </label>
+              </div>
+                <ToggleSwitch v-model="settings.usageAnalyticsEnabled" />
               </div>
 
               <div class="setting-item">
@@ -113,14 +99,7 @@
                   <div class="setting-item-label">允许调整窗口大小</div>
                   <div class="setting-item-description">启用后可以拖拽窗口边缘调整大小，窗口大小会自动记忆</div>
                 </div>
-                <label class="toggle-switch">
-                  <input
-                    type="checkbox"
-                    v-model="settings.window.resizable"
-                    class="toggle-input"
-                  />
-                  <span class="toggle-slider"></span>
-                </label>
+                <ToggleSwitch v-model="settings.window.resizable" />
               </div>
             </div>
           </section>
@@ -202,6 +181,7 @@ import { ref, onMounted, watch } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { getVersion } from '@tauri-apps/api/app';
 import Modal from './Modal.vue';
+import ToggleSwitch from './ToggleSwitch.vue';
 import StorageService, { StorageKey } from '../../utils/storage';
 import { DEFAULT_APP_SETTINGS, mergeAppSettings } from '../../utils/appSettings';
 
@@ -523,35 +503,6 @@ watch(
 
 .setting-button:disabled {
   @apply opacity-50 cursor-not-allowed;
-}
-
-/* 切换开关样式 */
-.toggle-switch {
-  @apply relative inline-block w-12 h-6 cursor-pointer;
-}
-
-.toggle-input {
-  @apply opacity-0 w-0 h-0;
-}
-
-.toggle-slider {
-  @apply absolute cursor-pointer top-0 left-0 right-0 bottom-0 bg-gray-300 rounded-full transition-all duration-200;
-}
-
-.toggle-slider:before {
-  @apply absolute content-[''] h-5 w-5 left-0.5 bottom-0.5 bg-white rounded-full transition-all duration-200;
-}
-
-.toggle-input:checked + .toggle-slider {
-  @apply bg-blue-600;
-}
-
-.toggle-input:checked + .toggle-slider:before {
-  @apply transform translate-x-6;
-}
-
-.toggle-slider:hover {
-  @apply shadow-md;
 }
 
 /* 信息网格样式 */

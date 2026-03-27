@@ -81,13 +81,22 @@ export function useWatchRecordFields<T extends WatchRecordLike>(
     updateEpisode(getLastEpisodeInSeason(record.value, normalized.season));
   };
 
-  const handleEpisodeInput = (event: Event) => {
-    const target = event.target as HTMLInputElement;
-    const rawValue = target.value === '' ? 0 : parseInt(target.value, 10) || 0;
+  const normalizeEpisodeValue = (value: string | number) => {
+    const rawValue = value === '' ? 0 : parseInt(String(value), 10) || 0;
     const normalized = getNormalizedProgress(record.value);
     const nextEpisode = clampEpisodeForSeason(record.value, normalized.season, rawValue);
-    target.value = nextEpisode.toString();
     updateEpisode(nextEpisode);
+    return nextEpisode;
+  };
+
+  const handleEpisodeInput = (event: Event) => {
+    const target = event.target as HTMLInputElement;
+    const nextEpisode = normalizeEpisodeValue(target.value);
+    target.value = nextEpisode.toString();
+  };
+
+  const handleEpisodeValueChange = (value: string | number) => {
+    normalizeEpisodeValue(value);
   };
 
   watch(
@@ -113,6 +122,7 @@ export function useWatchRecordFields<T extends WatchRecordLike>(
     currentSeasonMaxEpisodes,
     validateWatchedDate,
     handleEpisodeInput,
+    handleEpisodeValueChange,
     setToLastEpisode
   };
 }

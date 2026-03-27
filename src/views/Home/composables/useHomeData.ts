@@ -6,6 +6,7 @@ import { databaseAPI } from '../../../services/database-api';
 import { tvReminderService } from '../../../services/reminder';
 import type { Movie, Statistics, TVReminderGroup } from '../../../types';
 import { getWatchProgressSummary } from '../../../utils/seasonProgress';
+import { buildMovieActionItems, type MovieActionItem } from '../../../utils/watchInsights';
 
 interface LoadWatchingOptions {
   silent?: boolean;
@@ -35,6 +36,7 @@ export function useHomeData() {
   const watchingMovies = ref<Movie[]>([]);
   const recentHistory = ref<Movie[]>([]);
   const reminderGroups = ref<TVReminderGroup[]>([]);
+  const actionItems = ref<MovieActionItem[]>([]);
 
   const getMovieImageURL = (path: string | undefined) => {
     return tmdbAPI.getImageURL(path);
@@ -114,6 +116,7 @@ export function useHomeData() {
       const result = await databaseAPI.getMovies('watching');
       if (result.success && result.data) {
         watchingMovies.value = result.data;
+        actionItems.value = buildMovieActionItems(result.data, reminderGroups.value.flatMap(group => group.items));
         return result.data;
       }
 
@@ -121,6 +124,7 @@ export function useHomeData() {
     } catch (error) {
       console.error('获取追剧数据失败:', error);
       watchingError.value = error instanceof Error ? error.message : '获取追剧数据失败';
+      actionItems.value = buildMovieActionItems([], reminderGroups.value.flatMap(group => group.items));
       return [];
     } finally {
       if (!silent) {
@@ -157,6 +161,7 @@ export function useHomeData() {
       const result = await tvReminderService.getReminderGroups({ movies });
       if (result.success && result.data) {
         reminderGroups.value = result.data;
+        actionItems.value = buildMovieActionItems(watchingMovies.value, result.data.flatMap(group => group.items));
       } else {
         throw new Error(result.error || '获取更新提醒失败');
       }
@@ -164,6 +169,7 @@ export function useHomeData() {
       console.error('获取更新提醒失败:', error);
       reminderError.value = error instanceof Error ? error.message : '获取更新提醒失败';
       reminderGroups.value = [];
+      actionItems.value = buildMovieActionItems(watchingMovies.value);
     } finally {
       loadingReminders.value = false;
     }
@@ -212,6 +218,7 @@ export function useHomeData() {
     watchingMovies,
     recentHistory,
     reminderGroups,
+    actionItems,
     getMovieImageURL,
     navigateToDetail,
     getTotalWatchedEpisodes,

@@ -163,6 +163,17 @@ export function useSearchLogic(
     return tmdbAPI.getImageURL(path);
   };
 
+  const applySearchQuery = (query: string) => {
+    const normalizedQuery = query.trim();
+    searchState.value.query = normalizedQuery;
+    if (!normalizedQuery) {
+      searchState.value.results = [];
+      return;
+    }
+
+    handleTMDbSearch();
+  };
+
   return {
     searchState,
     handleTMDbSearch,
@@ -170,6 +181,7 @@ export function useSearchLogic(
     selectTMDbResult,
     handleTMDbResultClick,
     isAlreadyAdded,
-    getImageURL
+    getImageURL,
+    applySearchQuery
   };
 }

@@ -42,20 +42,14 @@
       <!-- 搜索和筛选区域 -->
       <div class="flex flex-col sm:flex-row sm:items-center space-y-4 sm:space-y-0 sm:space-x-4 w-full">
         <!-- 搜索输入框 -->
-        <div class="relative flex-1">
-          <SearchIcon 
-            :size="20" 
-            class="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none z-10" 
-          />
-          <input
-            :value="searchQuery"
-            @input="$emit('update:searchQuery', ($event.target as HTMLInputElement).value)"
-            type="text"
+        <div class="flex-1">
+          <TextField
+            :model-value="searchQuery"
             placeholder="搜索影视作品标题，支持拼音首字母..."
-            class="w-full pl-12 pr-4 py-3 rounded-xl bg-white/80 backdrop-blur-sm 
-                   border border-gray-200/50 text-gray-900 placeholder-gray-500
-                   focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100
-                   hover:border-gray-300/70 hover:bg-white/90 transition-all duration-200"
+            :leading-icon="SearchIcon"
+            type="search"
+            input-mode="search"
+            @update:model-value="$emit('update:searchQuery', $event)"
           />
         </div>
         
@@ -116,6 +110,7 @@ import {
   X
 } from 'lucide-vue-next';
 import HeadlessSelect from '../../../components/ui/HeadlessSelect.vue';
+import TextField from '../../../components/ui/TextField.vue';
 import { STATUS_OPTIONS, TYPE_OPTIONS } from '../../../utils/constants';
 import type { LibraryHeaderProps, LibraryHeaderEmits } from '../types';
 

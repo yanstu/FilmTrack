@@ -2,10 +2,12 @@ import { computed, onMounted } from 'vue';
 import { useMovieStore } from '../../../stores/movie';
 import { useInfiniteScroll } from '../../../composables/useInfiniteScroll';
 import { databaseAPI } from '../../../services/database-api';
+import type { Movie } from '../../../types';
 
 export function useHistoryData() {
   const movieStore = useMovieStore();
   let cachedTotalCount: number | null = null;
+  let cachedHistoryMovies: Movie[] | null = null;
 
   const stats = computed(() => {
     const movies = movieStore.movies;
@@ -27,35 +29,22 @@ export function useHistoryData() {
 
   const loadMoviesPage = async (page: number, pageSize: number) => {
     try {
-      const offset = (page - 1) * pageSize;
-      const requests: [
-        Promise<Awaited<ReturnType<typeof databaseAPI.getHistoryMovies>>>,
-        Promise<Awaited<ReturnType<typeof databaseAPI.countMovies>>>?
-      ] = [databaseAPI.getHistoryMovies(pageSize, offset)];
-
-      const shouldFetchTotal = cachedTotalCount === null || page === 1;
-      if (shouldFetchTotal) {
-        requests.push(databaseAPI.countMovies());
-      }
-
-      const [moviesResult, totalResult] = await Promise.all(requests);
-
-      if (!moviesResult.success || !moviesResult.data) {
-        throw new Error(moviesResult.error || '获取数据失败');
-      }
-
-      if (totalResult) {
-        if (!totalResult.success || totalResult.data === undefined) {
-          throw new Error(totalResult.error || '获取数据总数失败');
+      if (cachedHistoryMovies === null || page === 1) {
+        const historyResult = await databaseAPI.getHistoryMovies();
+        if (!historyResult.success || !historyResult.data) {
+          throw new Error(historyResult.error || '获取数据失败');
         }
-        cachedTotalCount = totalResult.data;
+
+        cachedHistoryMovies = historyResult.data;
+        cachedTotalCount = historyResult.data.length;
       }
 
-      const totalCount = cachedTotalCount ?? moviesResult.data.length;
+      const totalCount = cachedTotalCount ?? cachedHistoryMovies?.length ?? 0;
+      const pageItems = cachedHistoryMovies || [];
 
       return {
-        data: moviesResult.data,
-        hasMore: offset + pageSize < totalCount,
+        data: pageItems,
+        hasMore: false,
         total: totalCount
       };
     } catch (error) {
@@ -67,12 +56,17 @@ export function useHistoryData() {
   const infiniteScroll = useInfiniteScroll(loadMoviesPage, {
     pageSize: 20,
     threshold: 200,
-    immediate: false,
+    immediate: true,
     container: '#scroll-container'
   });
 
+  const hasInitialized = computed(() =>
+    infiniteScroll.currentPage.value > 0 || Boolean(infiniteScroll.error.value)
+  );
+
   const refresh = async () => {
     cachedTotalCount = null;
+    cachedHistoryMovies = null;
     await infiniteScroll.refresh();
   };
 
@@ -87,6 +81,7 @@ export function useHistoryData() {
   return {
     stats,
     ...infiniteScroll,
+    hasInitialized,
     refresh
   };
 }

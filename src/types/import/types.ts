@@ -2,8 +2,13 @@
  * 导入功能相关的类型定义
  */
 
+import type { Movie, ReplayRecord } from '../../types';
+
 // 导入日志类型
 export type ImportLogType = 'success' | 'skip' | 'error' | 'warning' | 'info';
+
+export type ImportReviewStatus = 'pending' | 'resolved';
+export type ImportReviewCategory = 'skipped' | 'failed' | 'merged' | 'matched';
 
 // 导入日志条目
 export interface ImportLog {
@@ -43,6 +48,38 @@ export interface ImportOptions {
   importComments?: boolean;
   importRatings?: boolean;
   importTags?: boolean;
+}
+
+export interface ImportReviewItem {
+  id: string;
+  title: string;
+  originalTitle?: string;
+  type: 'movie' | 'tv';
+  category: ImportReviewCategory;
+  status: ImportReviewStatus;
+  reason: string;
+  actionLabel: string;
+  query: string;
+  tmdbId?: number;
+  seasonNumber?: number | null;
+  doubanId?: string;
+  matchedTitle?: string;
+  score?: number;
+  timestamp: number;
+}
+
+export interface BackupPackageMetadata {
+  app: 'FilmTrack';
+  version: string;
+  exported_at: string;
+  record_count: number;
+  replay_record_count: number;
+}
+
+export interface BackupPackage {
+  metadata: BackupPackageMetadata;
+  movies: Movie[];
+  replay_records: ReplayRecord[];
 }
 
 // 导出格式

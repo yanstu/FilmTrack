@@ -6,7 +6,7 @@
       <div class="flex items-center justify-between animate-fade-in-up" style="animation-delay: 0ms;">
         <div>
           <h1 class="text-3xl font-bold text-gray-900 mb-2">影迹</h1>
-          <p class="text-gray-600">记录观影足迹，不再错过每一集精彩</p>
+          <p class="text-gray-600">把电影、剧集和观看进度放在一个地方</p>
         </div>
         <div class="flex space-x-3">
           <router-link
@@ -97,6 +97,50 @@
           </div>
       </div>
     </div>
+
+      <!-- 观影待办 -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 animate-fade-in-up" style="animation-delay: 125ms;">
+        <div class="flex items-center justify-between mb-6">
+          <div>
+            <h2 class="text-xl font-semibold text-gray-900">观影待办</h2>
+            <p class="text-gray-500 text-sm mt-1">把下一步要看的内容先放在这里</p>
+          </div>
+          <router-link
+            to="/library"
+            class="text-sm text-blue-600 hover:text-blue-700 font-medium"
+          >
+            打开影视库
+          </router-link>
+        </div>
+
+        <div v-if="loadingWatching || loadingReminders" class="flex items-center justify-center py-8 text-gray-600">
+          <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+          <span class="ml-3">整理待办中...</span>
+        </div>
+
+        <div v-else-if="actionItems.length === 0" class="rounded-2xl border border-dashed border-gray-200 bg-gray-50/80 px-6 py-10 text-center">
+          <p class="text-gray-600 font-medium">现在没有待办</p>
+          <p class="text-gray-400 text-sm mt-2">开始追剧或补几条在看记录后，再回来看看。</p>
+        </div>
+
+        <div v-else class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <button
+            v-for="item in actionItems"
+            :key="`${item.type}-${item.movieId}`"
+            type="button"
+            class="todo-card text-left"
+            @click="navigateToDetail(item.movieId)"
+          >
+            <div class="todo-card-header">
+              <span class="todo-card-tag" :class="`todo-card-tag-${item.type}`">{{ getActionTypeLabel(item.type) }}</span>
+              <span class="todo-card-link">{{ item.actionLabel }}</span>
+            </div>
+            <div class="todo-card-title">{{ item.title }}</div>
+            <div class="todo-card-subtitle">{{ item.subtitle }}</div>
+            <div class="todo-card-reason">{{ item.reason }}</div>
+          </button>
+        </div>
+      </div>
 
       <!-- 更新提醒 -->
       <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 animate-fade-in-up" style="animation-delay: 150ms;">
@@ -334,6 +378,7 @@ const {
   watchingMovies,
   recentHistory,
   reminderGroups,
+  actionItems,
   getMovieImageURL,
   navigateToDetail,
   getTotalWatchedEpisodes,
@@ -345,6 +390,17 @@ const {
   refreshReminders,
   initializeData
 } = useHomeData()
+
+const getActionTypeLabel = (type: string) => {
+  const labels: Record<string, string> = {
+    continue: '继续追剧',
+    resume: '恢复进度',
+    upcoming: '新集提醒',
+    review: '待复核'
+  }
+
+  return labels[type] || '待处理'
+}
 
 onMounted(() => {
   // 延迟执行，确保组件完全挂载
@@ -518,5 +574,83 @@ onMounted(() => {
 
 .stats-card-pink {
   background: linear-gradient(135deg, #ec4899, #db2777);
+}
+
+.todo-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.25rem;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  background:
+    radial-gradient(circle at top right, rgba(191, 219, 254, 0.3), transparent 34%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.96));
+  padding: 1rem;
+  transition:
+    transform 220ms ease,
+    border-color 220ms ease,
+    box-shadow 220ms ease;
+}
+
+.todo-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(96, 165, 250, 0.55);
+  box-shadow: 0 18px 34px -24px rgba(15, 23, 42, 0.45);
+}
+
+.todo-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.85rem;
+  gap: 0.75rem;
+}
+
+.todo-card-tag {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  padding: 0.25rem 0.65rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.todo-card-tag-continue {
+  background: rgba(219, 234, 254, 0.95);
+  color: #1d4ed8;
+}
+
+.todo-card-tag-resume {
+  background: rgba(254, 240, 138, 0.95);
+  color: #a16207;
+}
+
+.todo-card-tag-upcoming {
+  background: rgba(220, 252, 231, 0.95);
+  color: #15803d;
+}
+
+.todo-card-link {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #2563eb;
+}
+
+.todo-card-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.todo-card-subtitle {
+  margin-top: 0.35rem;
+  font-size: 0.88rem;
+  color: #1d4ed8;
+}
+
+.todo-card-reason {
+  margin-top: 0.75rem;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: #64748b;
 }
 </style>

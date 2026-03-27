@@ -66,6 +66,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
+import { useRoute } from 'vue-router';
 import { useMovieStore } from '../../stores/movie';
 
 // 组件导入
@@ -112,17 +113,24 @@ const {
   selectTMDbResult,
   handleTMDbResultClick,
   isAlreadyAdded,
-  getImageURL
+  getImageURL,
+  applySearchQuery
 } = useSearchLogic(form, showDialog);
 
 // 监听搜索查询变化
 const movieStore = useMovieStore();
+const route = useRoute();
 
 // 初始化
 onMounted(async () => {
   // 确保加载影视作品数据用于重复检测
   if (!movieStore.hasMovies) {
     await movieStore.fetchMovies();
+  }
+
+  const importQuery = typeof route.query.query === 'string' ? route.query.query : '';
+  if (importQuery) {
+    applySearchQuery(importQuery);
   }
 });
 

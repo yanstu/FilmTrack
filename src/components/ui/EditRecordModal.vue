@@ -54,15 +54,14 @@
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">当前集数</label>
             <div class="flex space-x-2">
-              <input
-                :value="localMovie.current_episode"
-                @input="handleEpisodeInput"
+              <TextField
+                :model-value="localMovie.current_episode"
                 type="number"
+                input-mode="numeric"
                 min="1"
                 :max="currentSeasonMaxEpisodes"
-                class="flex-1 px-4 py-3 rounded-xl bg-white/80 backdrop-blur-sm
-                       border border-gray-200/50 text-gray-900
-                       focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                class="flex-1"
+                @update:model-value="handleEpisodeValueChange"
               />
               <button
                 v-if="localMovie.type === 'tv' && currentSeasonMaxEpisodes > 0"
@@ -80,10 +79,9 @@
           <!-- 观看时间 -->
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">观看时间</label>
-            <input
+            <DateField
               v-model="localMovie.watched_date"
-              type="date"
-              :class="dateInputClass"
+              :invalid="Boolean(dateError)"
             />
             <!-- 日期错误提示 -->
             <div v-if="dateError" class="mt-1 text-sm text-red-600 flex items-center">
@@ -97,13 +95,9 @@
           <!-- 观看源/平台 -->
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">观看源/平台</label>
-            <input
+            <TextField
               v-model="localMovie.watch_source"
-              type="text"
               placeholder="如：Netflix、爱奇艺、电影院等"
-              class="w-full px-4 py-3 rounded-xl bg-white/80 backdrop-blur-sm 
-                     border border-gray-200/50 text-gray-900 placeholder-gray-500
-                     focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
             />
           </div>
         </div>
@@ -111,14 +105,11 @@
         <!-- 观看笔记 -->
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-2">观看笔记</label>
-          <textarea
+          <TextAreaField
             v-model="localMovie.notes"
-            rows="4"
+            :rows="4"
             placeholder="记录您的观看感受..."
-            class="w-full px-4 py-3 rounded-xl bg-white/80 backdrop-blur-sm 
-                   border border-gray-200/50 text-gray-900 placeholder-gray-500
-                   focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100 resize-none"
-          ></textarea>
+          />
         </div>
       </div>
     </template>
@@ -128,9 +119,12 @@
 <script setup lang="ts">
 import { ref, watch, computed, nextTick } from 'vue';
 import { APP_CONFIG } from '../../../config/app.config';
+import DateField from './DateField.vue';
 import Modal from './Modal.vue';
 import HeadlessSelect from './HeadlessSelect.vue';
 import StarRating from './StarRating.vue';
+import TextAreaField from './TextAreaField.vue';
+import TextField from './TextField.vue';
 import type { EditRecordModalProps, EditRecordModalEmits } from './types';
 import type { Movie } from '../../types';
 import { getNormalizedProgress, normalizeProgressForStatus } from '../../utils/seasonProgress';
@@ -157,22 +151,13 @@ const {
   seasonOptions,
   currentSeasonMaxEpisodes,
   validateWatchedDate,
-  handleEpisodeInput,
+  handleEpisodeValueChange,
   setToLastEpisode
 } = useWatchRecordFields(localMovie);
 
 // 检查是否可以保存
 const canSave = computed(() => {
   return validateWatchedDate();
-});
-
-// 日期输入框的样式类
-const dateInputClass = computed(() => {
-  const baseClass = 'w-full px-4 py-3 rounded-xl bg-white/80 backdrop-blur-sm border text-gray-900 focus:outline-none focus:ring-2';
-  if (dateError.value) {
-    return `${baseClass} border-red-300 focus:border-red-400 focus:ring-red-100`;
-  }
-  return `${baseClass} border-gray-200/50 focus:border-blue-400 focus:ring-blue-100`;
 });
 
 // 初始化电影数据，确保所有必需字段都有默认值

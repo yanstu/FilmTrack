@@ -9,12 +9,11 @@
         您确定要删除选中的 {{ selectedCount }} 个影视作品吗？此操作无法撤销。
       </p>
       <div class="mb-4">
-        <input 
-          :value="confirmInput"
-          @input="$emit('update:confirmInput', ($event.target as HTMLInputElement).value)"
-          type="text"
+        <TextField 
+          :model-value="confirmInput"
+          @update:model-value="$emit('update:confirmInput', $event)"
           placeholder="输入 y 确认删除"
-          class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          dense
         />
       </div>
       <div class="flex justify-end space-x-4">
@@ -37,6 +36,7 @@
 </template>
 
 <script setup lang="ts">
+import TextField from '../../../components/ui/TextField.vue';
 import type { DeleteConfirmDialogProps, DeleteConfirmDialogEmits } from '../types';
 
 type Props = DeleteConfirmDialogProps;

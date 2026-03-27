@@ -5,17 +5,53 @@
 import { ref } from 'vue';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
+import { getVersion } from '@tauri-apps/api/app';
 import { useAppStore } from '../../../stores/app';
 import { useMovieStore } from '../../../stores/movie';
 import { databaseAPI } from '../../../services/database-api';
-import type { ExportFormat } from '../../../types/import';
-import type { Movie, CSVParseResult } from '../../../types';
+import type { BackupPackage, ExportFormat } from '../../../types/import';
+import type { Movie, CSVParseResult, ReplayRecord } from '../../../types';
+
+type ImportSummary = {
+  successCount: number;
+  skipCount: number;
+  failCount: number;
+};
+
+function buildMovieIdentityKey(movie: Pick<Movie, 'tmdb_id' | 'title' | 'type'>): string {
+  if (movie.tmdb_id) {
+    return `tmdb:${movie.tmdb_id}`;
+  }
+
+  return `title:${movie.type}:${(movie.title || '').trim().toLowerCase()}`;
+}
+
+function buildReplayRecordIdentityKey(record: Pick<ReplayRecord, 'movie_id' | 'watch_date' | 'season' | 'episode' | 'rating' | 'notes'>): string {
+  return [
+    record.movie_id,
+    record.watch_date,
+    record.season ?? '',
+    record.episode ?? '',
+    record.rating ?? '',
+    (record.notes || '').trim()
+  ].join('::');
+}
+
+function isBackupPackage(data: unknown): data is BackupPackage {
+  return Boolean(
+    data &&
+    typeof data === 'object' &&
+    Array.isArray((data as BackupPackage).movies) &&
+    Array.isArray((data as BackupPackage).replay_records)
+  );
+}
 
 export function useFileOperations() {
   // 状态
   const isExporting = ref(false);
   const isImporting = ref(false);
   const movieStore = useMovieStore();
+  const appStore = useAppStore();
 
   // 导出数据
   const exportData = async (format: ExportFormat) => {
@@ -46,13 +82,13 @@ export function useFileOperations() {
       if (format === 'csv') {
         await exportToCSV(movies, filePath);
       } else {
-        await exportToJSON(movies, filePath);
+        await exportToJSON(filePath);
       }
       
-      alert('导出成功！');
+      appStore.modalService.showInfo('导出成功', `数据已导出到：${filePath}`);
     } catch (error) {
       console.error('导出数据失败:', error);
-      alert(`导出失败: ${error}`);
+      appStore.modalService.showError('导出失败', String(error));
     } finally {
       isExporting.value = false;
     }
@@ -92,8 +128,34 @@ export function useFileOperations() {
   };
 
   // 导出为JSON
-  const exportToJSON = async (movies: Movie[], filePath: string) => {
-    const jsonContent = JSON.stringify(movies, null, 2);
+  const exportToJSON = async (filePath: string) => {
+    const [moviesResponse, replayRecordsResponse, appVersion] = await Promise.all([
+      databaseAPI.getMovies(),
+      databaseAPI.getReplayRecords(),
+      getVersion().catch(() => 'unknown')
+    ]);
+
+    if (!moviesResponse.success || !moviesResponse.data) {
+      throw new Error(moviesResponse.error || '无法读取影视记录');
+    }
+
+    if (!replayRecordsResponse.success || !replayRecordsResponse.data) {
+      throw new Error(replayRecordsResponse.error || '无法读取重刷记录');
+    }
+
+    const backupPackage: BackupPackage = {
+      metadata: {
+        app: 'FilmTrack',
+        version: appVersion,
+        exported_at: new Date().toISOString(),
+        record_count: moviesResponse.data.length,
+        replay_record_count: replayRecordsResponse.data.length,
+      },
+      movies: moviesResponse.data,
+      replay_records: replayRecordsResponse.data,
+    };
+
+    const jsonContent = JSON.stringify(backupPackage, null, 2);
     await writeTextFile(filePath, jsonContent);
   };
 
@@ -122,50 +184,146 @@ export function useFileOperations() {
       
       // 读取文件内容
       const content = await readTextFile(filePath);
-      let data = [];
+      let importedMovies: Movie[] = [];
+      let importedReplayRecords: ReplayRecord[] = [];
       
       // 解析数据
       if (format === 'csv') {
-        data = parseCSV(content);
+        importedMovies = parseCSV(content) as unknown as Movie[];
       } else {
-        data = JSON.parse(content);
-      }
-      
-      // 导入数据
-      let successCount = 0;
-      let skipCount = 0;
-      let failCount = 0;
-      
-      for (const item of data) {
-        try {
-          // 检查是否已存在
-          const existsResponse = await databaseAPI.checkExistingMovie(item.title, item.tmdb_id);
-          if (existsResponse.success && existsResponse.data && existsResponse.data.exists) {
-            skipCount++;
-            continue;
-          }
-          
-          // 添加到数据库
-          await databaseAPI.addMovie(item);
-          successCount++;
-        } catch (error) {
-          failCount++;
-          console.error(`导入失败: ${item.title} - ${error}`);
+        const parsed = JSON.parse(content);
+        if (isBackupPackage(parsed)) {
+          importedMovies = parsed.movies;
+          importedReplayRecords = parsed.replay_records;
+        } else if (Array.isArray(parsed)) {
+          importedMovies = parsed;
+        } else {
+          throw new Error('无法识别该备份文件格式');
         }
       }
+      
+      const summary = await importBackupData(importedMovies, importedReplayRecords);
 
-      if (successCount > 0) {
+      if (summary.successCount > 0) {
         await movieStore.fetchMovies({ force: true });
       }
       
-      alert(`导入完成！成功: ${successCount}, 跳过: ${skipCount}, 失败: ${failCount}`);
+      appStore.modalService.showInfo(
+        '导入完成',
+        `成功: ${summary.successCount}，跳过: ${summary.skipCount}，失败: ${summary.failCount}`
+      );
       
     } catch (error) {
       console.error('导入数据失败:', error);
-      alert(`导入失败: ${error}`);
+      appStore.modalService.showError('导入失败', String(error));
     } finally {
       isImporting.value = false;
     }
+  };
+
+  const importBackupData = async (
+    importedMovies: Movie[],
+    importedReplayRecords: ReplayRecord[]
+  ): Promise<ImportSummary> => {
+    let successCount = 0;
+    let skipCount = 0;
+    let failCount = 0;
+
+    const [existingMoviesResponse, existingReplayRecordsResponse] = await Promise.all([
+      databaseAPI.getMovies(),
+      databaseAPI.getReplayRecords()
+    ]);
+
+    if (!existingMoviesResponse.success || !existingMoviesResponse.data) {
+      throw new Error(existingMoviesResponse.error || '读取现有影视库失败');
+    }
+
+    if (!existingReplayRecordsResponse.success || !existingReplayRecordsResponse.data) {
+      throw new Error(existingReplayRecordsResponse.error || '读取现有重刷记录失败');
+    }
+
+    const movieIdentityMap = new Map<string, Movie>();
+    const sourceToTargetMovieId = new Map<string, string>();
+    existingMoviesResponse.data.forEach(movie => {
+      movieIdentityMap.set(buildMovieIdentityKey(movie), movie);
+    });
+
+    for (const item of importedMovies) {
+      try {
+        const identityKey = buildMovieIdentityKey(item);
+        const existedMovie = movieIdentityMap.get(identityKey);
+        if (existedMovie) {
+          sourceToTargetMovieId.set(item.id, existedMovie.id);
+          skipCount++;
+          continue;
+        }
+
+        const addResult = await databaseAPI.addMovie(item);
+        if (!addResult.success || !addResult.data) {
+          failCount++;
+          continue;
+        }
+
+        successCount++;
+        movieIdentityMap.set(identityKey, addResult.data);
+        sourceToTargetMovieId.set(item.id, addResult.data.id);
+      } catch (error) {
+        failCount++;
+        console.error(`导入影视记录失败: ${item.title} - ${error}`);
+      }
+    }
+
+    if (importedReplayRecords.length === 0) {
+      return { successCount, skipCount, failCount };
+    }
+
+    const replayRecordIdentitySet = new Set(
+      existingReplayRecordsResponse.data.map(record => buildReplayRecordIdentityKey(record))
+    );
+
+    for (const record of importedReplayRecords) {
+      const targetMovieId = sourceToTargetMovieId.get(record.movie_id) || record.movie_id;
+      if (!targetMovieId) {
+        failCount++;
+        continue;
+      }
+
+      const identityKey = buildReplayRecordIdentityKey({
+        ...record,
+        movie_id: targetMovieId,
+      });
+
+      if (replayRecordIdentitySet.has(identityKey)) {
+        skipCount++;
+        continue;
+      }
+
+      try {
+        const addRecordResult = await databaseAPI.addReplayRecord({
+          movie_id: targetMovieId,
+          watch_date: record.watch_date,
+          season: record.season ?? undefined,
+          episode: record.episode ?? undefined,
+          duration: record.duration ?? 0,
+          progress: record.progress ?? 1,
+          rating: record.rating ?? undefined,
+          notes: record.notes ?? undefined,
+        });
+
+        if (!addRecordResult.success) {
+          failCount++;
+          continue;
+        }
+
+        replayRecordIdentitySet.add(identityKey);
+        successCount++;
+      } catch (error) {
+        failCount++;
+        console.error(`导入重刷记录失败: ${record.id} - ${error}`);
+      }
+    }
+
+    return { successCount, skipCount, failCount };
   };
 
   // 解析CSV文件

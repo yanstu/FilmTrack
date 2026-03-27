@@ -24,6 +24,7 @@ import type {
   ImportProgress,
   ImportLog,
   DoubanMovie,
+  ImportReviewItem,
 } from '../../../types/import';
 import type {
   Movie,
@@ -90,6 +91,7 @@ const importSettings = ref<ImportSettings>({
 });
 const importProgress = ref<ImportProgress>(createEmptyImportProgress());
 const importLogs = ref<ImportLog[]>([]);
+const reviewItems = ref<ImportReviewItem[]>([]);
 const shouldStop = ref(false);
 const importSessionId = ref<string>('');
 const hasImportSession = computed(() =>
@@ -97,6 +99,55 @@ const hasImportSession = computed(() =>
   importProgress.value.total > 0 ||
   importLogs.value.length > 0
 );
+const pendingReviewCount = computed(() => reviewItems.value.filter(item => item.status === 'pending').length);
+const latestReviewItems = computed(() => reviewItems.value.slice(0, 8));
+
+function createReviewItem(
+  movie: DoubanMovie,
+  category: ImportReviewItem['category'],
+  reason: string,
+  options: Partial<Omit<ImportReviewItem, 'id' | 'title' | 'originalTitle' | 'type' | 'category' | 'status' | 'reason' | 'actionLabel' | 'query' | 'timestamp'>> & {
+    actionLabel?: string;
+    query?: string;
+  } = {}
+): ImportReviewItem {
+  return {
+    id: `${movie.douban_id || movie.title}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+    title: movie.title,
+    originalTitle: movie.original_title || undefined,
+    type: movie.type_ === 'movie' ? 'movie' : 'tv',
+    category,
+    status: 'pending',
+    reason,
+    actionLabel: options.actionLabel || '去修正',
+    query: options.query || movie.original_title || movie.title,
+    tmdbId: options.tmdbId,
+    seasonNumber: options.seasonNumber,
+    doubanId: movie.douban_id,
+    matchedTitle: options.matchedTitle,
+    score: options.score,
+    timestamp: Date.now(),
+  };
+}
+
+function upsertReviewItem(item: ImportReviewItem) {
+  const existingIndex = reviewItems.value.findIndex(existing =>
+    existing.title === item.title &&
+    existing.category === item.category &&
+    existing.status === 'pending'
+  );
+
+  if (existingIndex >= 0) {
+    reviewItems.value.splice(existingIndex, 1, {
+      ...reviewItems.value[existingIndex],
+      ...item,
+      id: reviewItems.value[existingIndex].id,
+    });
+    return;
+  }
+
+  reviewItems.value.unshift(item);
+}
 
 function normalizeTitle(title: string): string {
   return cleanTitle(title)
@@ -660,6 +711,7 @@ export function useDoubanImport() {
   const resetImport = () => {
     importProgress.value = createEmptyImportProgress();
     importLogs.value = [];
+    reviewItems.value = [];
     shouldStop.value = false;
     importSessionId.value = new Date()
       .toISOString()
@@ -674,8 +726,22 @@ export function useDoubanImport() {
 
     importProgress.value = createEmptyImportProgress();
     importLogs.value = [];
+    reviewItems.value = [];
     shouldStop.value = false;
     importSessionId.value = '';
+  };
+
+  const openReviewItem = async (item: ImportReviewItem) => {
+    item.status = 'resolved';
+    const { default: router } = await import('../../../router');
+    await router.push({
+      name: 'Record',
+      query: {
+        query: item.query,
+        from: 'douban-import',
+        importReview: item.id,
+      }
+    });
   };
 
   const startDoubanImport = async () => {
@@ -721,10 +787,12 @@ export function useDoubanImport() {
 
           importProgress.value.current++;
           importProgress.value.processed++;
+          let seasonNumber: number | null = null;
+          let matched: MatchedDetail | null = null;
 
           try {
-            const seasonNumber = extractSeasonNumber(movie.title);
-            const matched = importSettings.value.enableTMDbMatching
+            seasonNumber = extractSeasonNumber(movie.title);
+            matched = importSettings.value.enableTMDbMatching
               ? await matchTmdbRecord(movie, addLog, importSettings.value.enableTitleCleaning)
               : null;
 
@@ -736,6 +804,12 @@ export function useDoubanImport() {
 
             if (operation.kind === 'skip') {
               importProgress.value.skipped++;
+              upsertReviewItem(createReviewItem(movie, 'skipped', operation.message, {
+                query: movie.original_title || movie.title,
+                seasonNumber,
+                score: matched?.score,
+                matchedTitle: matched ? formatMatchedTitle(matched.detail) : undefined,
+              }));
               await addLog('skip', operation.message);
               continue;
             }
@@ -746,6 +820,13 @@ export function useDoubanImport() {
 
               if (!result.success || !result.data) {
                 importProgress.value.failed++;
+                upsertReviewItem(createReviewItem(movie, 'failed', result.error || '更新数据库失败', {
+                  query: movie.original_title || movie.title,
+                  tmdbId: matched?.detail.id,
+                  matchedTitle: matched ? formatMatchedTitle(matched.detail) : undefined,
+                  score: matched?.score,
+                  seasonNumber,
+                }));
                 await addLog(
                   'error',
                   `合并失败: "${movie.title}" - ${result.error || '更新数据库失败'}`
@@ -755,6 +836,16 @@ export function useDoubanImport() {
 
               updateIndexes(indexes, result.data, existingMovie);
               importProgress.value.success++;
+              if (matched && matched.score < HIGH_CONFIDENCE_SCORE) {
+                upsertReviewItem(createReviewItem(movie, 'merged', '已完成合并，但匹配分数偏低，建议人工复核一次', {
+                  query: result.data.title || movie.title,
+                  tmdbId: matched.detail.id,
+                  matchedTitle: formatMatchedTitle(matched.detail),
+                  score: matched.score,
+                  seasonNumber,
+                  actionLabel: '去复核',
+                }));
+              }
               await addLog(operation.logType || 'success', operation.message);
               continue;
             }
@@ -764,6 +855,13 @@ export function useDoubanImport() {
 
             if (!result.success || !result.data) {
               importProgress.value.failed++;
+              upsertReviewItem(createReviewItem(movie, 'failed', result.error || '写入数据库失败', {
+                query: movie.original_title || movie.title,
+                tmdbId: matched?.detail.id,
+                matchedTitle: matched ? formatMatchedTitle(matched.detail) : undefined,
+                score: matched?.score,
+                seasonNumber,
+              }));
               await addLog(
                 'error',
                 `导入失败: "${movie.title}" - ${result.error || '写入数据库失败'}`
@@ -773,9 +871,24 @@ export function useDoubanImport() {
 
             updateIndexes(indexes, result.data);
             importProgress.value.success++;
+            if (matched && matched.score < HIGH_CONFIDENCE_SCORE) {
+              upsertReviewItem(createReviewItem(movie, 'matched', '已导入，但匹配分数偏低，建议检查是否导入到了正确条目', {
+                query: result.data.title || movie.title,
+                tmdbId: matched.detail.id,
+                matchedTitle: formatMatchedTitle(matched.detail),
+                score: matched.score,
+                seasonNumber,
+                actionLabel: '去确认',
+              }));
+            }
             await addLog('success', `成功导入: "${result.data.title}"`);
           } catch (error) {
             importProgress.value.failed++;
+            upsertReviewItem(createReviewItem(movie, 'failed', String(error), {
+              query: movie.original_title || movie.title,
+              seasonNumber,
+              score: matched?.score,
+            }));
             await addLog('error', `处理失败: "${movie.title}" - ${error}`);
           }
         }
@@ -814,10 +927,14 @@ export function useDoubanImport() {
     hasImportSession,
     importProgress,
     importLogs,
+    reviewItems,
+    latestReviewItems,
+    pendingReviewCount,
     importSettings,
     startDoubanImport,
     stopImport,
     clearImportSession,
+    openReviewItem,
     updateImportSettings,
   };
 }

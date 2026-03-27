@@ -3,6 +3,7 @@
  */
 
 import type { Movie, ModalType } from '../../types';
+import type { WatchTimelineItem } from '../../utils/watchInsights';
 
 export interface DetailState {
   isLoading: boolean;
@@ -115,6 +116,7 @@ export interface DetailContentProps {
   watchProgress: WatchProgress;
   getProgressColor: (progress: number) => string;
   formatDate: (dateString: string) => string;
+  watchTimeline: WatchTimelineItem[];
 }
 
 // WatchSource 组件类型

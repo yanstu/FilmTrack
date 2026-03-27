@@ -46,17 +46,15 @@
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-2">当前集数</label>
           <div class="flex space-x-2">
-            <input
-              :value="form.current_episode"
-              @input="handleEpisodeInput"
+            <TextField
+              :model-value="form.current_episode"
               type="number"
+              input-mode="numeric"
               min="1"
               :max="currentSeasonMaxEpisodes"
               placeholder="1"
-              class="flex-1 px-4 py-3 rounded-xl bg-white/80 backdrop-blur-sm
-                     border border-gray-200/50 text-gray-900 placeholder-gray-500
-                     focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100
-                     hover:border-gray-300/70 hover:bg-white/90 transition-all duration-200"
+              class="flex-1"
+              @update:model-value="handleEpisodeValueChange"
             />
             <button
               v-if="currentSeasonMaxEpisodes > 0"
@@ -76,13 +74,11 @@
           <label class="block text-sm font-medium text-gray-700 mb-2">
             观看时间 <span class="text-red-500">*</span>
           </label>
-          <input
-            :value="form.watched_date"
-            @input="$emit('update:watchedDate', ($event.target as HTMLInputElement).value)"
-            type="date"
+          <DateField
+            :model-value="form.watched_date"
+            @update:model-value="$emit('update:watchedDate', $event)"
             :max="new Date().toISOString().split('T')[0]"
-            required
-            :class="dateInputClass"
+            :invalid="Boolean(dateError)"
           />
           <!-- 日期错误提示 -->
           <div v-if="dateError" class="mt-1 text-sm text-red-600 flex items-center">
@@ -94,15 +90,10 @@
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-2">观看源/平台</label>
-          <input
-            :value="form.watch_source"
-            @input="$emit('update:watchSource', ($event.target as HTMLInputElement).value)"
-            type="text"
+          <TextField
+            :model-value="form.watch_source"
             placeholder="如：Netflix、爱奇艺、电影院等"
-            class="w-full px-4 py-3 rounded-xl bg-white/80 backdrop-blur-sm 
-                   border border-gray-200/50 text-gray-900 placeholder-gray-500
-                   focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100
-                   hover:border-gray-300/70 hover:bg-white/90 transition-all duration-200"
+            @update:model-value="$emit('update:watchSource', $event)"
           />
         </div>
       </div>
@@ -110,16 +101,12 @@
       <!-- 观看笔记 -->
       <div>
         <label class="block text-sm font-medium text-gray-700 mb-2">观看笔记</label>
-        <textarea
-          :value="form.notes"
-          @input="$emit('update:notes', ($event.target as HTMLTextAreaElement).value)"
-          rows="4"
+        <TextAreaField
+          :model-value="form.notes"
+          @update:model-value="$emit('update:notes', $event)"
+          :rows="4"
           placeholder="记录您的观看感受..."
-          class="w-full px-4 py-3 rounded-xl bg-white/80 backdrop-blur-sm 
-                 border border-gray-200/50 text-gray-900 placeholder-gray-500
-                 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100
-                 hover:border-gray-300/70 hover:bg-white/90 transition-all duration-200 resize-none"
-        ></textarea>
+        />
       </div>
     </div>
   </div>
@@ -128,8 +115,11 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { Clipboard as ClipboardIcon } from 'lucide-vue-next';
+import DateField from '../../../components/ui/DateField.vue';
 import HeadlessSelect from '../../../components/ui/HeadlessSelect.vue';
 import StarRating from '../../../components/ui/StarRating.vue';
+import TextAreaField from '../../../components/ui/TextAreaField.vue';
+import TextField from '../../../components/ui/TextField.vue';
 import type { UserRecordFormProps, UserRecordFormEmits } from '../types';
 import { useWatchRecordFields } from '../../../composables/useWatchRecordFields';
 
@@ -145,19 +135,9 @@ const {
   dateError,
   seasonOptions,
   currentSeasonMaxEpisodes,
-  handleEpisodeInput
+  handleEpisodeValueChange
 } = useWatchRecordFields(formRef, {
   onDateValidityChange: value => emit('update:dateValid', value),
   onEpisodeChange: value => emit('update:currentEpisode', value)
 });
-
-// 日期输入框样式计算属性
-const dateInputClass = computed(() => {
-  const baseClass = 'w-full px-4 py-3 rounded-xl bg-white/80 backdrop-blur-sm border text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 transition-all duration-200';
-  if (dateError.value) {
-    return `${baseClass} border-red-300 focus:border-red-400 focus:ring-red-100`;
-  }
-  return `${baseClass} border-gray-200/50 focus:border-blue-400 focus:ring-blue-100 hover:border-gray-300/70 hover:bg-white/90`;
-});
-
 </script>

@@ -30,6 +30,38 @@
             </div>
           </div>
         </div>
+
+        <div class="mt-6 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1.5fr)_repeat(2,minmax(0,180px))_auto]">
+          <TextField
+            v-model="searchQuery"
+            placeholder="搜标题、原名或笔记"
+            :leading-icon="SearchIcon"
+            @update:model-value="applyFilters"
+          />
+
+          <HeadlessSelect
+            v-model="selectedType"
+            :options="historyTypeOptions"
+            placeholder="全部类型"
+            @update:model-value="applyFilters"
+          />
+
+          <HeadlessSelect
+            v-model="selectedStatus"
+            :options="historyStatusOptions"
+            placeholder="全部状态"
+            @update:model-value="applyFilters"
+          />
+
+          <button
+            v-if="activeFilterCount > 0"
+            type="button"
+            class="history-reset-button"
+            @click="resetFilters"
+          >
+            重置
+          </button>
+        </div>
       </div>
     </div>
 
@@ -44,7 +76,7 @@
       </div>
 
       <!-- 时间轴内容 -->
-      <div class="pt-32" v-else-if="groupedMovies.length > 0">
+      <div class="history-content" v-else-if="groupedMovies.length > 0">
         <div class="timeline-container">
           <div v-for="group in groupedMovies" :key="group.date" class="timeline-group">
             <!-- 日期分组标题 -->
@@ -141,16 +173,21 @@
       </div>
 
       <!-- 空状态 -->
-      <div v-else-if="isEmpty" class="empty-state">
+      <div v-else-if="hasInitialized && (isEmpty || filteredMovies.length === 0)" class="empty-state">
         <div class="empty-icon">
           <svg class="w-20 h-20 text-gray-400 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
               d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         </div>
-        <h3 class="empty-title">暂无重刷记录</h3>
-        <p class="empty-description">开始观看影视作品后，这里会显示你的观看记录</p>
-        <router-link to="/record" class="empty-action">
+        <h3 class="empty-title">{{ activeFilterCount > 0 ? '没找到符合条件的记录' : '还没有历史记录' }}</h3>
+        <p class="empty-description">
+          {{ activeFilterCount > 0 ? '换个关键词，或者把筛选条件放宽一点。' : '从第一条记录开始，这里会慢慢排出你的观看时间线。' }}
+        </p>
+        <button v-if="activeFilterCount > 0" type="button" class="empty-action" @click="resetFilters">
+          重置
+        </button>
+        <router-link v-else to="/record" class="empty-action">
           <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
           </svg>
@@ -176,8 +213,11 @@
 </template>
 
 <script setup lang="ts">
+import { Search as SearchIcon } from 'lucide-vue-next';
 import { formatRating, getTypeLabel, getStatusLabel, getStatusBadgeClass } from '../utils/constants';
 import CachedImage from '../components/ui/CachedImage.vue';
+import HeadlessSelect from '../components/ui/HeadlessSelect.vue';
+import TextField from '../components/ui/TextField.vue';
 import { useHistoryData } from './History/composables/useHistoryData';
 import { useHistoryView } from './History/composables/useHistoryView';
 
@@ -188,16 +228,26 @@ const {
   error: loadError,
   hasMore,
   isEmpty,
+  hasInitialized,
   refresh
 } = useHistoryData();
 
 const {
   groupedMovies,
+  filteredMovies,
+  searchQuery,
+  selectedType,
+  selectedStatus,
+  activeFilterCount,
+  historyTypeOptions,
+  historyStatusOptions,
   navigateToDetail,
   getImageURL,
   getTotalWatchedEpisodes,
   getWatchProgress,
-  formatGroupDate
+  formatGroupDate,
+  applyFilters,
+  resetFilters
 } = useHistoryView(movies);
 
 </script>
@@ -206,6 +256,14 @@ const {
 /* 统计卡片 */
 .stat-card {
   @apply bg-white/80 backdrop-blur-sm border border-gray-200/50 rounded-xl p-4 text-center hover:shadow-lg transition-all duration-300;
+}
+
+.history-reset-button {
+  @apply rounded-xl border border-transparent bg-gray-900 px-4 py-3 text-sm font-medium text-white transition-colors duration-200 hover:bg-gray-800;
+}
+
+.history-content {
+  padding-top: 12.5rem;
 }
 
 /* 时间线视图样式 */
@@ -225,7 +283,7 @@ const {
 
 .timeline-date {
   @apply flex items-center justify-between mb-6 sticky z-10 bg-white/95 backdrop-blur-sm py-3 rounded-lg border border-gray-200/80 shadow-sm;
-  top: 125px;
+  top: 13.2rem;
   padding-left: 1.5rem;
   padding-right: 1.5rem;
 }

@@ -6,18 +6,15 @@
     </h2>
     
     <div class="relative">
-      <input
-        :value="searchQuery"
-        @input="$emit('update:searchQuery', ($event.target as HTMLInputElement).value)"
-        @keydown.enter="$emit('selectFirst')"
-        type="text"
+      <TextField
+        :model-value="searchQuery"
         placeholder="搜索电影或电视剧，支持中英文..."
-        class="w-full px-4 py-3 pl-12 rounded-xl bg-white/80 backdrop-blur-sm 
-               border border-gray-200/50 text-gray-900 placeholder-gray-500
-               focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100
-               hover:border-gray-300/70 hover:bg-white/90 transition-all duration-200"
+        :leading-icon="SearchIcon"
+        type="search"
+        input-mode="search"
+        @update:model-value="$emit('update:searchQuery', $event)"
+        @enter="$emit('selectFirst')"
       />
-      <SearchIcon :size="20" class="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" />
       
       <!-- 搜索快捷提示 -->
       <div v-if="!searchQuery && showSearchTips" 
@@ -65,6 +62,7 @@
 
 <script setup lang="ts">
 import { Search as SearchIcon } from 'lucide-vue-next';
+import TextField from '../../../components/ui/TextField.vue';
 import SearchResults from './SearchResults.vue';
 import type { TMDbMovie } from '../../../types';
 

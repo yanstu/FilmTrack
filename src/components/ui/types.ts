@@ -65,6 +65,64 @@ export interface HeadlessSelectEmits {
   (e: 'update:modelValue', value: string | number): void;
 }
 
+export interface TextFieldProps {
+  modelValue?: string | number | null | undefined;
+  placeholder?: string;
+  type?: 'text' | 'search' | 'number';
+  inputMode?: 'text' | 'search' | 'numeric' | 'decimal';
+  min?: number | string;
+  max?: number | string;
+  step?: number | string;
+  disabled?: boolean;
+  readonly?: boolean;
+  leadingIcon?: object | null;
+  trailingText?: string;
+  invalid?: boolean;
+  dense?: boolean;
+}
+
+export interface TextFieldEmits {
+  (e: 'update:modelValue', value: string): void;
+  (e: 'enter'): void;
+  (e: 'blur'): void;
+}
+
+export interface TextAreaFieldProps {
+  modelValue?: string | null | undefined;
+  placeholder?: string;
+  rows?: number;
+  disabled?: boolean;
+  invalid?: boolean;
+}
+
+export interface TextAreaFieldEmits {
+  (e: 'update:modelValue', value: string): void;
+  (e: 'blur'): void;
+}
+
+export interface ToggleSwitchProps {
+  modelValue?: boolean;
+  disabled?: boolean;
+}
+
+export interface ToggleSwitchEmits {
+  (e: 'update:modelValue', value: boolean): void;
+}
+
+export interface DateFieldProps {
+  modelValue?: string | null | undefined;
+  placeholder?: string;
+  max?: string;
+  min?: string;
+  disabled?: boolean;
+  invalid?: boolean;
+}
+
+export interface DateFieldEmits {
+  (e: 'update:modelValue', value: string): void;
+  (e: 'blur'): void;
+}
+
 export interface SettingsModalProps {
   isOpen: boolean;
   isCheckingUpdate?: boolean;

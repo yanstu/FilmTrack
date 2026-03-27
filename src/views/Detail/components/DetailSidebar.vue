@@ -1,5 +1,9 @@
 <template>
   <div class="space-y-6">
+    <div class="animate-slide-in-right" style="animation-delay: 0.08s;">
+      <EpisodeGuideCard :movie="movie" />
+    </div>
+
     <!-- 操作按钮 -->
     <div class="animate-slide-in-right" style="animation-delay: 0.1s;">
       <ActionButtons
@@ -29,6 +33,7 @@
 import ActionButtons from './ActionButtons.vue';
 import MovieDetails from './MovieDetails.vue';
 import DeleteSection from './DeleteSection.vue';
+import EpisodeGuideCard from './EpisodeGuideCard.vue';
 import type { Movie } from '../../../types';
 
 import type { DetailPropsWithFormat, DetailSidebarEmits } from '../types';

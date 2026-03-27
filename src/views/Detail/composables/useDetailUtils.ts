@@ -2,13 +2,19 @@
  * Detail 页面工具函数
  */
 
-import { computed, type Ref } from 'vue';
+import { computed, ref, watch, type Ref } from 'vue';
 import { tmdbAPI } from '../../../utils/api';
 import { APP_CONFIG } from '../../../../config/app.config';
 import type { DetailState, WatchProgress } from '../types';
 import { getWatchProgressSummary } from '../../../utils/seasonProgress';
+import { useMovieStore } from '../../../stores/movie';
+import type { ReplayRecord } from '../../../types';
+import { buildWatchTimeline } from '../../../utils/watchInsights';
 
 export function useDetailUtils(detailState: Ref<DetailState>) {
+  const movieStore = useMovieStore();
+  const replayRecords = ref<ReplayRecord[]>([]);
+
   // 获取图片URL
   const getImageURL = (path: string | undefined) => {
     return tmdbAPI.getImageURL(path);
@@ -32,6 +38,15 @@ export function useDetailUtils(detailState: Ref<DetailState>) {
       };
     }
     return getWatchProgressSummary(movie);
+  });
+
+  const watchTimeline = computed(() => {
+    const movie = detailState.value.movie;
+    if (!movie) {
+      return [];
+    }
+
+    return buildWatchTimeline(movie, replayRecords.value);
   });
 
   // 获取观看进度百分比
@@ -63,10 +78,25 @@ export function useDetailUtils(detailState: Ref<DetailState>) {
     }
   };
 
+  watch(
+    () => detailState.value.movie?.id,
+    async movieId => {
+      if (!movieId) {
+        replayRecords.value = [];
+        return;
+      }
+
+      const response = await movieStore.getMovieReplayRecords(movieId);
+      replayRecords.value = response.success && response.data ? response.data : [];
+    },
+    { immediate: true }
+  );
+
   return {
     getImageURL,
     getBackdropURL,
     watchProgress,
+    watchTimeline,
     getWatchProgress,
     getProgressColor,
     formatDate,

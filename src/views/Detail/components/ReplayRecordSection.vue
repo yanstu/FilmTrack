@@ -119,13 +119,14 @@
             <!-- 重刷日期 -->
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">重刷日期</label>
-              <input 
+              <DateField
                 v-model="historyForm.watched_date"
-                type="date" 
                 :max="new Date().toISOString().split('T')[0]"
-                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              >
+                :invalid="Boolean(historyDateError)"
+              />
+              <p v-if="historyDateError" class="mt-2 text-sm text-red-600">
+                {{ historyDateError }}
+              </p>
             </div>
 
             <!-- 评分 -->
@@ -144,12 +145,11 @@
             <!-- 观看笔记 -->
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">重刷笔记 (可选)</label>
-              <textarea 
+              <TextAreaField
                 v-model="historyForm.notes"
-                rows="3"
-                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                :rows="3"
                 placeholder="记录重刷感受、重要情节等..."
-              ></textarea>
+              />
             </div>
 
             <!-- 按钮 -->
@@ -191,15 +191,19 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
+import { useAppStore } from '../../../stores/app';
 import { useMovieStore } from '../../../stores/movie';
 import { formatDate } from '../../../utils/constants';
+import DateField from '../../../components/ui/DateField.vue';
 import StarRating from '../../../components/ui/StarRating.vue';
+import TextAreaField from '../../../components/ui/TextAreaField.vue';
 import DeleteConfirmDialog from '../../Library/components/DeleteConfirmDialog.vue';
 import type { Movie, ReplayRecord } from '../../../types';
 import type { ReplayRecordSectionProps } from '../types';
 
 const props = defineProps<ReplayRecordSectionProps>();
 const movieStore = useMovieStore();
+const appStore = useAppStore();
 
 // 状态管理
 const loading = ref(false);
@@ -219,6 +223,7 @@ const historyForm = ref({
   rating: undefined as number | undefined,
   notes: ''
 });
+const historyDateError = ref('');
 
 // 计算属性
 const sortedHistory = computed(() => {
@@ -246,6 +251,7 @@ const loadReplayRecords = async () => {
 
 const addNewHistory = () => {
   editingHistory.value = null;
+  historyDateError.value = '';
   historyForm.value = {
     watched_date: new Date().toISOString().split('T')[0],
     rating: undefined,
@@ -256,6 +262,7 @@ const addNewHistory = () => {
 
 const editHistory = (history: ReplayRecord) => {
   editingHistory.value = history;
+  historyDateError.value = '';
   historyForm.value = {
     watched_date: history.watched_date || history.watch_date,
     rating: history.rating,
@@ -267,6 +274,7 @@ const editHistory = (history: ReplayRecord) => {
 const closeEditModal = () => {
   showEditModal.value = false;
   editingHistory.value = null;
+  historyDateError.value = '';
 };
 
 const saveHistory = async () => {
@@ -275,9 +283,12 @@ const saveHistory = async () => {
   // 校验观看日期不能大于当前日期
   const currentDate = new Date().toISOString().split('T')[0];
   if (historyForm.value.watched_date > currentDate) {
-    alert('观看日期不能大于当前日期，请选择正确的观看日期');
+    historyDateError.value = '重刷日期不能晚于今天';
+    appStore.modalService.showInfo('日期有误', '重刷日期不能晚于今天');
     return;
   }
+
+  historyDateError.value = '';
   
   saving.value = true;
   try {

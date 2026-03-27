@@ -44,6 +44,7 @@
           <DetailContent
             :movie="detailState.movie"
             :watch-progress="watchProgress"
+            :watch-timeline="watchTimeline"
             :get-progress-color="getProgressColor"
             :format-date="formatDate"
           />
@@ -119,6 +120,7 @@ const {
   getImageURL,
   getBackdropURL,
   watchProgress,
+  watchTimeline,
   getProgressColor,
   formatDate,
   isValidUrl
