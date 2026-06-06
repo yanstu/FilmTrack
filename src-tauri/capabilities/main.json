@@ -1,0 +1,63 @@
+{
+  "$schema": "https://schema.tauri.app/config/2/capability",
+  "identifier": "main-capability",
+  "description": "Main application capability",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-internal-toggle-maximize",
+    "core:window:allow-maximize",
+    "core:window:allow-unmaximize",
+    "core:window:allow-is-maximized",
+    "core:window:allow-minimize",
+    "core:window:allow-hide",
+    "core:window:allow-show",
+    "core:window:allow-close",
+    "core:window:allow-set-size",
+    "core:window:allow-set-min-size",
+    "core:window:allow-set-max-size",
+    "core:window:allow-set-resizable",
+    "core:window:allow-inner-size",
+    "core:window:allow-outer-size",
+    "core:window:allow-is-resizable",
+    "core:window:allow-inner-position",
+    "core:window:allow-outer-position",
+    "core:window:allow-set-position",
+    "sql:default",
+    "sql:allow-load",
+    "sql:allow-execute",
+    "sql:allow-select",
+    "sql:allow-close",
+    "opener:default",
+    "dialog:default",
+    "dialog:allow-save",
+    "dialog:allow-open",
+    "fs:default",
+    "fs:allow-read-file",
+    "fs:allow-write-file",
+    "fs:allow-read-dir",
+    "fs:allow-exists",
+    "fs:allow-write-text-file",
+    "fs:write-files",
+    "fs:allow-appconfig-write-recursive",
+    "fs:allow-download-write",
+    "fs:allow-download-write-recursive",
+    {
+      "identifier": "http:default",
+      "allow": [
+        {
+          "url": "https://umami.yanstu.cn/api/send"
+        },
+        {
+          "url": "https://*"
+        },
+        {
+          "url": "http://*"
+        }
+      ]
+    },
+    "shell:allow-open"
+  ]
+}

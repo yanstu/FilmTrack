@@ -1,0 +1,871 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+use tauri::{command, Manager, Emitter, menu::{MenuBuilder, MenuItem, PredefinedMenuItem}, tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState}, AppHandle, LogicalSize, PhysicalPosition};
+use uuid::Uuid;
+use chrono::Utc;
+use base64::{Engine as _, engine::general_purpose};
+use filmtrackpro_lib::{
+    models::{ApiResponse, StorageInfo}, 
+    services::{CacheService, StorageService, UpdateService, UpdateCheckResult},
+    scrapers::{DoubanScraper, DoubanMovie},
+    config::{AppConfig, ConfigManager, WindowConfig}
+};
+mod stream_proxy;
+use stream_proxy::{get_stream_proxy_base_url, start_stream_proxy_server};
+
+fn sanitize_window_size(width: u32, height: u32, min_width: u32, min_height: u32) -> (u32, u32) {
+    let safe_min_width = min_width.max(800);
+    let safe_min_height = min_height.max(600);
+    let recommended_width = 1280u32.max(safe_min_width);
+    let recommended_height = 800u32.max(safe_min_height);
+
+    if width < safe_min_width || height < safe_min_height {
+        return (recommended_width, recommended_height);
+    }
+
+    (
+        width.max(safe_min_width),
+        height.max(safe_min_height)
+    )
+}
+
+/// 将窗口大小钳制到当前显示器可用范围内
+///
+/// 解决默认 1600x900 在小屏（如 13" MacBook 的 1280x800/1440x900）上超出屏幕的问题：
+/// 大屏保持期望尺寸，小屏自动缩小以适配，同时不低于最小尺寸。
+fn clamp_size_to_monitor(
+    window: &tauri::WebviewWindow,
+    width: u32,
+    height: u32,
+    min_width: u32,
+    min_height: u32,
+) -> (u32, u32) {
+    if let Ok(Some(monitor)) = window.current_monitor() {
+        let scale = monitor.scale_factor();
+        let size = monitor.size();
+        if scale > 0.0 && size.width > 0 && size.height > 0 {
+            let logical_w = (size.width as f64 / scale).floor() as u32;
+            let logical_h = (size.height as f64 / scale).floor() as u32;
+            // 预留菜单栏 / Dock / 窗口边距
+            let max_w = logical_w.saturating_sub(40).max(min_width);
+            let max_h = logical_h.saturating_sub(80).max(min_height);
+            return (
+                width.min(max_w).max(min_width),
+                height.min(max_h).max(min_height),
+            );
+        }
+    }
+
+    (width.max(min_width), height.max(min_height))
+}
+
+/// 验证窗口位置是否有效
+/// 排除Windows系统中的特殊值和异常坐标
+fn is_valid_window_position(x: i32, y: i32) -> bool {
+    // 排除Windows系统的特殊值
+    if x == -32000 || y == -32000 {
+        return false;
+    }
+    
+    // 排除过于极端的负值（可能是DPI缩放问题）
+    if x < -10000 || y < -10000 {
+        return false;
+    }
+    
+    // 排除过于极端的正值（超出合理屏幕范围）
+    if x > 50000 || y > 50000 {
+        return false;
+    }
+    
+    true
+}
+
+/// 生成UUID
+#[command]
+async fn generate_uuid() -> Result<ApiResponse<String>, String> {
+    let uuid = Uuid::new_v4().to_string();
+    Ok(ApiResponse::success(uuid))
+}
+
+/// 获取当前时间戳
+#[command]
+async fn get_current_timestamp() -> Result<ApiResponse<String>, String> {
+    let timestamp = Utc::now().to_rfc3339();
+    Ok(ApiResponse::success(timestamp))
+}
+
+/// 获取存储信息
+#[command]
+async fn get_storage_info(app: AppHandle) -> Result<ApiResponse<StorageInfo>, String> {
+    match StorageService::get_storage_info(&app) {
+        Ok(storage_info) => Ok(ApiResponse::success(storage_info)),
+        Err(error) => Err(error),
+    }
+}
+
+/// 清空图片缓存
+#[command]
+async fn clear_image_cache(app: AppHandle) -> Result<ApiResponse<String>, String> {
+    match CacheService::clear_cache(&app) {
+        Ok(_) => Ok(ApiResponse::success("图片缓存已清空".to_string())),
+        Err(error) => Err(error),
+    }
+}
+
+/// 清空所有数据
+#[command]
+async fn clear_all_data(app: AppHandle) -> Result<ApiResponse<String>, String> {
+    match StorageService::clear_all_data(&app) {
+        Ok(_) => Ok(ApiResponse::success("所有数据已清空".to_string())),
+        Err(error) => Err(error),
+    }
+}
+
+/// 缓存图片
+#[command]
+async fn cache_image(app: AppHandle, image_url: String) -> Result<ApiResponse<String>, String> {
+    match CacheService::cache_image(&app, &image_url).await {
+        Ok(path) => Ok(ApiResponse::success(path)),
+        Err(error) => Err(error),
+    }
+}
+
+/// 获取缓存图片路径
+#[command]
+async fn get_cached_image_path(app: AppHandle, image_url: String) -> Result<ApiResponse<Option<String>>, String> {
+    match CacheService::get_cached_image_path(&app, &image_url) {
+        Ok(path) => Ok(ApiResponse::success(path)),
+        Err(error) => Err(error),
+    }
+}
+
+/// 读取文件为base64
+///
+/// 安全限制：仅允许读取应用数据目录内的文件（如图片缓存），
+/// 避免该命令在前端被滥用为任意文件读取原语。
+#[command]
+async fn read_file_as_base64(app: AppHandle, file_path: String) -> Result<ApiResponse<String>, String> {
+    let app_data_dir = app.path().app_data_dir()
+        .map_err(|e| format!("无法获取应用数据目录: {}", e))?;
+
+    let requested = std::fs::canonicalize(&file_path)
+        .map_err(|e| format!("读取文件失败: {}", e))?;
+    let allowed_root = std::fs::canonicalize(&app_data_dir)
+        .unwrap_or(app_data_dir);
+
+    if !requested.starts_with(&allowed_root) {
+        return Err("拒绝访问：文件不在允许的目录范围内".to_string());
+    }
+
+    match std::fs::read(&requested) {
+        Ok(bytes) => {
+            let base64_string = general_purpose::STANDARD.encode(&bytes);
+            Ok(ApiResponse::success(base64_string))
+        },
+        Err(error) => Err(format!("读取文件失败: {}", error)),
+    }
+}
+
+/// 删除特定图片缓存
+#[command]
+async fn remove_cached_image(app: AppHandle, image_url: String) -> Result<ApiResponse<String>, String> {
+    match CacheService::remove_cached_image(&app, &image_url) {
+        Ok(_) => Ok(ApiResponse::success("图片缓存已删除".to_string())),
+        Err(error) => Err(error),
+    }
+}
+
+/// 删除多个图片缓存
+#[command]
+async fn remove_cached_images(app: AppHandle, image_urls: Vec<String>) -> Result<ApiResponse<String>, String> {
+    match CacheService::remove_cached_images(&app, &image_urls) {
+        Ok(_) => Ok(ApiResponse::success("图片缓存已删除".to_string())),
+        Err(error) => Err(error),
+    }
+}
+
+// 命令：估算豆瓣电影数量
+#[tauri::command]
+async fn estimate_douban_movie_count(user_id: String) -> Result<u32, String> {
+    let scraper = DoubanScraper::new();
+    scraper.estimate_movie_count(&user_id).await
+        .map_err(|e| format!("估算豆瓣电影数量失败: {}", e))
+}
+
+// 命令：获取豆瓣电影列表
+#[tauri::command]
+async fn fetch_douban_movies(user_id: String, start: u32) -> Result<Vec<DoubanMovie>, String> {
+    let scraper = DoubanScraper::new();
+    scraper.fetch_movies(&user_id, start).await
+        .map_err(|e| format!("获取豆瓣电影列表失败: {}", e))
+}
+
+/// 获取应用配置
+#[tauri::command]
+async fn get_app_config() -> Result<ApiResponse<AppConfig>, String> {
+    Ok(ApiResponse::success(ConfigManager::get()))
+}
+
+/// 更新应用配置
+#[tauri::command]
+async fn update_app_config(app: AppHandle, config: AppConfig) -> Result<ApiResponse<String>, String> {
+    match ConfigManager::update(config, &app) {
+        Ok(_) => Ok(ApiResponse::success("配置已更新".to_string())),
+        Err(error) => Err(error),
+    }
+}
+
+/// 检查更新
+#[tauri::command]
+async fn check_for_update() -> Result<ApiResponse<UpdateCheckResult>, String> {
+    match UpdateService::check_for_update().await {
+        Ok(result) => Ok(ApiResponse::success(result)),
+        Err(error) => Err(error),
+    }
+}
+
+/// 忽略版本
+#[tauri::command]
+async fn ignore_version(version: String) -> Result<(), String> {
+    UpdateService::ignore_version(version)
+}
+
+/// 下载更新
+#[tauri::command]
+async fn download_update(app_handle: AppHandle, url: String, expected_sha256: Option<String>) -> Result<String, String> {
+    let file_path = UpdateService::download_update(&app_handle, &url, expected_sha256).await?;
+    Ok(file_path.to_string_lossy().to_string())
+}
+
+/// 打开安装包
+#[tauri::command]
+async fn open_installer(file_path: String) -> Result<(), String> {
+    let path = std::path::PathBuf::from(file_path);
+    UpdateService::open_installer(&path)
+}
+
+/// 检查更新是否已下载
+#[tauri::command]
+async fn is_update_downloaded(app_handle: AppHandle, url: String) -> Result<Option<String>, String> {
+    match UpdateService::is_file_downloaded(&app_handle, &url)? {
+        Some(path) => Ok(Some(path.to_string_lossy().to_string())),
+        None => Ok(None)
+    }
+}
+
+/// 打开下载链接
+#[tauri::command]
+async fn open_download_url(url: String) -> Result<(), String> {
+    UpdateService::open_download_url(&url)
+}
+
+/// 获取文件信息
+#[tauri::command]
+async fn get_file_info(url: String) -> Result<filmtrackpro_lib::models::FileInfo, String> {
+    UpdateService::get_file_info(&url).await
+}
+
+/// 取消下载
+#[tauri::command]
+async fn cancel_download() -> Result<(), String> {
+    UpdateService::cancel_download()
+}
+
+/// 退出应用
+#[tauri::command]
+async fn exit_app(app_handle: AppHandle) -> Result<(), String> {
+    app_handle.exit(0);
+    Ok(())
+}
+
+/// 写入豆瓣导入日志
+#[tauri::command]
+async fn write_douban_import_log(app_handle: AppHandle, log_message: String, session_id: Option<String>) -> Result<(), String> {
+    use std::fs::OpenOptions;
+    use std::io::Write;
+    use chrono::Local;
+
+    // 获取应用数据目录
+    let app_data_dir = app_handle.path().app_data_dir()
+        .map_err(|e| format!("获取应用数据目录失败: {}", e))?;
+
+    // 创建豆瓣导入日志目录
+    let log_dir = app_data_dir.join("douban_import");
+    std::fs::create_dir_all(&log_dir)
+        .map_err(|e| format!("创建日志目录失败: {}", e))?;
+
+    // 生成日志文件名（按导入会话分开）
+    let now = Local::now();
+    let session_id = session_id.unwrap_or_else(|| now.format("%Y%m%d_%H%M%S").to_string());
+    let log_filename = format!("douban_import_{}.txt", session_id);
+    let log_path = log_dir.join(log_filename);
+
+    // 写入日志
+    let timestamp = now.format("%Y-%m-%d %H:%M:%S");
+    let log_line = format!("[{}] {}\n", timestamp, log_message);
+
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_path)
+        .map_err(|e| format!("打开日志文件失败: {}", e))?;
+
+    file.write_all(log_line.as_bytes())
+        .map_err(|e| format!("写入日志失败: {}", e))?;
+
+    file.flush()
+        .map_err(|e| format!("刷新日志文件失败: {}", e))?;
+
+    Ok(())
+}
+
+/// 获取窗口配置
+#[tauri::command]
+async fn get_window_config() -> Result<ApiResponse<WindowConfig>, String> {
+    let config = ConfigManager::get_window_config();
+    Ok(ApiResponse::success(config))
+}
+
+/// 更新窗口配置
+#[tauri::command]
+async fn update_window_config(app: AppHandle, window_config: WindowConfig) -> Result<ApiResponse<String>, String> {
+    match ConfigManager::update_window_config(window_config, &app) {
+        Ok(_) => Ok(ApiResponse::success("窗口配置已更新".to_string())),
+        Err(error) => Err(error),
+    }
+}
+
+/// 应用窗口大小设置
+#[tauri::command]
+async fn apply_window_size(app: AppHandle, width: u32, height: u32) -> Result<ApiResponse<String>, String> {
+    if let Some(window) = app.get_webview_window("main") {
+        let window_config = ConfigManager::get_window_config();
+        let (safe_width, safe_height) = sanitize_window_size(
+            width,
+            height,
+            window_config.min_width,
+            window_config.min_height
+        );
+        let (safe_width, safe_height) = clamp_size_to_monitor(
+            &window,
+            safe_width,
+            safe_height,
+            window_config.min_width,
+            window_config.min_height
+        );
+        let logical_size = LogicalSize::new(safe_width, safe_height);
+        window.set_size(logical_size)
+            .map_err(|e| format!("设置窗口大小失败: {}", e))?;
+        Ok(ApiResponse::success(format!("窗口大小已应用: {}x{}", safe_width, safe_height)))
+    } else {
+        Err("未找到主窗口".to_string())
+    }
+}
+
+/// 设置窗口最小大小
+#[tauri::command]
+async fn set_window_min_size(app: AppHandle, min_width: u32, min_height: u32) -> Result<ApiResponse<String>, String> {
+    if let Some(window) = app.get_webview_window("main") {
+        let logical_size = LogicalSize::new(min_width, min_height);
+        window.set_min_size(Some(logical_size))
+            .map_err(|e| format!("设置窗口最小大小失败: {}", e))?;
+        Ok(ApiResponse::success("窗口最小大小已设置".to_string()))
+    } else {
+        Err("未找到主窗口".to_string())
+    }
+}
+
+/// 设置窗口最大大小
+#[tauri::command]
+async fn set_window_max_size(app: AppHandle, max_width: Option<u32>, max_height: Option<u32>) -> Result<ApiResponse<String>, String> {
+    if let Some(window) = app.get_webview_window("main") {
+        let max_size = if let (Some(w), Some(h)) = (max_width, max_height) {
+            Some(LogicalSize::new(w, h))
+        } else {
+            None // 无限制
+        };
+        window.set_max_size(max_size)
+            .map_err(|e| format!("设置窗口最大大小失败: {}", e))?;
+        Ok(ApiResponse::success("窗口最大大小已设置".to_string()))
+    } else {
+        Err("未找到主窗口".to_string())
+    }
+}
+
+/// 设置窗口是否可调整大小
+#[tauri::command]
+async fn set_window_resizable(app: AppHandle, resizable: bool) -> Result<ApiResponse<String>, String> {
+    if let Some(window) = app.get_webview_window("main") {
+        window.set_resizable(resizable)
+            .map_err(|e| format!("设置窗口可调整大小失败: {}", e))?;
+        Ok(ApiResponse::success(format!("窗口可调整大小已设置为: {}", resizable)))
+    } else {
+        Err("未找到主窗口".to_string())
+    }
+}
+
+/// 获取当前窗口大小
+#[tauri::command]
+async fn get_window_size(app: AppHandle) -> Result<ApiResponse<(u32, u32)>, String> {
+    if let Some(window) = app.get_webview_window("main") {
+        let size = window.inner_size()
+            .map_err(|e| format!("获取窗口大小失败: {}", e))?;
+        Ok(ApiResponse::success((size.width, size.height)))
+    } else {
+        Err("未找到主窗口".to_string())
+    }
+}
+
+/// 保存当前窗口大小到配置
+#[tauri::command]
+async fn save_window_size(app: AppHandle) -> Result<ApiResponse<String>, String> {
+    if let Some(window) = app.get_webview_window("main") {
+        // 获取逻辑窗口大小和DPI缩放因子
+        let logical_size = window.inner_size()
+            .map_err(|e| format!("获取窗口大小失败: {}", e))?;
+        let scale_factor = window.scale_factor()
+            .map_err(|e| format!("获取缩放因子失败: {}", e))?;
+        
+        // 计算真实的物理窗口大小（除以DPI缩放因子）
+        let actual_width = (logical_size.width as f64 / scale_factor).round() as u32;
+        let actual_height = (logical_size.height as f64 / scale_factor).round() as u32;
+        
+        // 获取当前窗口配置
+        let mut window_config = ConfigManager::get_window_config();
+        let (actual_width, actual_height) = sanitize_window_size(
+            actual_width,
+            actual_height,
+            window_config.min_width,
+            window_config.min_height
+        );
+        
+        // 更新窗口大小为真实大小
+        window_config.width = actual_width;
+        window_config.height = actual_height;
+        
+        // 保存配置
+        ConfigManager::update_window_config(window_config, &app)
+            .map_err(|e| format!("保存窗口配置失败: {}", e))?;
+        
+        Ok(ApiResponse::success(format!("窗口大小已保存: {}x{} (缩放因子: {:.2})", actual_width, actual_height, scale_factor)))
+    } else {
+        Err("未找到主窗口".to_string())
+    }
+}
+
+/// 获取窗口位置
+#[tauri::command]
+async fn get_window_position(app: AppHandle) -> Result<ApiResponse<(i32, i32)>, String> {
+    if let Some(window) = app.get_webview_window("main") {
+        // 直接返回物理像素坐标，避免DPI缩放问题
+        let position = window.outer_position()
+            .map_err(|e| format!("获取窗口位置失败: {}", e))?;
+        
+        Ok(ApiResponse::success((position.x, position.y)))
+    } else {
+        Err("未找到主窗口".to_string())
+    }
+}
+
+/// 设置窗口位置
+#[tauri::command]
+async fn set_window_position(app: AppHandle, x: i32, y: i32) -> Result<ApiResponse<String>, String> {
+    if let Some(window) = app.get_webview_window("main") {
+        // 使用PhysicalPosition避免DPI缩放问题
+        let position = PhysicalPosition::new(x, y);
+        window.set_position(position)
+            .map_err(|e| format!("设置窗口位置失败: {}", e))?;
+        
+        Ok(ApiResponse::success(format!("窗口位置已设置为: ({}, {})", x, y)))
+    } else {
+        Err("未找到主窗口".to_string())
+    }
+}
+
+/// 保存窗口位置
+#[tauri::command]
+async fn save_window_position(app: AppHandle) -> Result<ApiResponse<String>, String> {
+    if let Some(window) = app.get_webview_window("main") {
+        let position = window.outer_position()
+            .map_err(|e| format!("获取窗口位置失败: {}", e))?;
+        
+        // 验证位置有效性：排除特殊值和异常坐标
+        if !is_valid_window_position(position.x, position.y) {
+            return Err("窗口位置无效，无法保存".to_string());
+        }
+        
+        // 获取当前窗口配置
+        let mut window_config = ConfigManager::get_window_config();
+        
+        // 更新窗口位置
+        window_config.x = Some(position.x);
+        window_config.y = Some(position.y);
+        
+        // 保存配置
+        ConfigManager::update_window_config(window_config, &app)
+            .map_err(|e| format!("保存窗口配置失败: {}", e))?;
+        
+        Ok(ApiResponse::success(format!("窗口位置已保存: ({}, {})", position.x, position.y)))
+    } else {
+        Err("未找到主窗口".to_string())
+    }
+}
+
+/// 保存窗口大小和位置
+#[tauri::command]
+async fn save_window_state(app: AppHandle) -> Result<ApiResponse<String>, String> {
+    if let Some(window) = app.get_webview_window("main") {
+        // 获取窗口大小
+        let logical_size = window.inner_size()
+            .map_err(|e| format!("获取窗口大小失败: {}", e))?;
+        let scale_factor = window.scale_factor()
+            .map_err(|e| format!("获取缩放因子失败: {}", e))?;
+        
+        // 计算真实的物理窗口大小
+        let actual_width = (logical_size.width as f64 / scale_factor).round() as u32;
+        let actual_height = (logical_size.height as f64 / scale_factor).round() as u32;
+        
+        // 获取窗口位置
+        let position = window.outer_position()
+            .map_err(|e| format!("获取窗口位置失败: {}", e))?;
+        
+        // 获取当前窗口配置
+        let mut window_config = ConfigManager::get_window_config();
+        let (actual_width, actual_height) = sanitize_window_size(
+            actual_width,
+            actual_height,
+            window_config.min_width,
+            window_config.min_height
+        );
+        
+        // 更新窗口大小和位置
+        window_config.width = actual_width;
+        window_config.height = actual_height;
+        window_config.x = Some(position.x);
+        window_config.y = Some(position.y);
+        
+        // 保存配置
+        ConfigManager::update_window_config(window_config, &app)
+            .map_err(|e| format!("保存窗口配置失败: {}", e))?;
+        
+        Ok(ApiResponse::success(format!("窗口状态已保存: {}x{} at ({}, {})", actual_width, actual_height, position.x, position.y)))
+    } else {
+        Err("未找到主窗口".to_string())
+    }
+}
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_sql::Builder::new().build())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_http::init())
+        .plugin(tauri_plugin_shell::init())
+        .setup(|app| {
+            let stream_proxy_state = start_stream_proxy_server()?;
+            app.manage(stream_proxy_state);
+
+            // 加载配置
+            if let Err(error) = ConfigManager::load(&app.app_handle()) {
+                eprintln!("加载配置失败: {}", error);
+            }
+            
+            // 应用保存的窗口配置
+            if let Some(window) = app.get_webview_window("main") {
+                let window_config = ConfigManager::get_window_config().normalize();
+                let (safe_width, safe_height) = sanitize_window_size(
+                    window_config.width,
+                    window_config.height,
+                    window_config.min_width,
+                    window_config.min_height
+                );
+                // 适配当前显示器：避免默认尺寸在小屏上超出可视区域
+                let (safe_width, safe_height) = clamp_size_to_monitor(
+                    &window,
+                    safe_width,
+                    safe_height,
+                    window_config.min_width,
+                    window_config.min_height
+                );
+                let min_size = LogicalSize::new(window_config.min_width, window_config.min_height);
+                if let Err(e) = window.set_min_size(Some(min_size)) {
+                    eprintln!("应用最小窗口大小失败: {}", e);
+                }
+                
+                // 应用窗口大小
+                let logical_size = LogicalSize::new(safe_width, safe_height);
+                if let Err(e) = window.set_size(logical_size) {
+                    eprintln!("应用窗口大小失败: {}", e);
+                }
+                
+                // 应用窗口位置（如果有保存的位置且位置有效）
+                if let (Some(x), Some(y)) = (window_config.x, window_config.y) {
+                    if is_valid_window_position(x, y) {
+                        // 使用PhysicalPosition避免DPI缩放问题
+                        let position = PhysicalPosition::new(x, y);
+                        if let Err(e) = window.set_position(position) {
+                            eprintln!("应用窗口位置失败: {}", e);
+                            // 如果应用保存的位置失败，则居中显示
+                            if let Err(e) = window.center() {
+                                eprintln!("居中窗口失败: {}", e);
+                            }
+                        }
+                    } else {
+                        // 如果保存的位置无效，居中显示并清除无效位置
+                        if let Err(e) = window.center() {
+                            eprintln!("居中窗口失败: {}", e);
+                        }
+                        // 清除无效的位置配置
+                        let mut updated_config = window_config.clone();
+                        updated_config.x = None;
+                        updated_config.y = None;
+                        if let Err(e) = ConfigManager::update_window_config(updated_config, &app.app_handle()) {
+                            eprintln!("清除无效窗口位置失败: {}", e);
+                        }
+                    }
+                } else {
+                    // 如果没有保存的位置，居中显示
+                    if let Err(e) = window.center() {
+                        eprintln!("居中窗口失败: {}", e);
+                    }
+                }
+                
+                // 应用最大窗口大小
+                let max_size = if let (Some(w), Some(h)) = (window_config.max_width, window_config.max_height) {
+                    Some(LogicalSize::new(w, h))
+                } else {
+                    None
+                };
+                if let Err(e) = window.set_max_size(max_size) {
+                    eprintln!("应用最大窗口大小失败: {}", e);
+                }
+                
+                // 应用窗口可调整大小设置
+                if let Err(e) = window.set_resizable(window_config.resizable) {
+                    eprintln!("应用窗口可调整大小设置失败: {}", e);
+                }
+                
+                // 延迟显示窗口，创建平滑的启动体验
+                let window_clone = window.clone();
+                std::thread::spawn(move || {
+                    // 等待100毫秒让窗口完全配置好
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                    
+                    // 显示窗口
+                    if let Err(e) = window_clone.show() {
+                        eprintln!("显示窗口失败: {}", e);
+                        return;
+                    }
+                    
+                    // 通过JavaScript执行淡入动画
+                    let fade_in_script = r#"
+                        (function() {
+                            // 设置初始样式
+                            document.body.style.opacity = '0';
+                            document.body.style.transition = 'opacity 300ms ease-in-out';
+                            
+                            // 强制重绘
+                            document.body.offsetHeight;
+                            
+                            // 开始淡入动画
+                            setTimeout(() => {
+                                document.body.style.opacity = '1';
+                            }, 10);
+                        })();
+                    "#;
+                    
+                    // 执行淡入动画脚本
+                    if let Err(e) = window_clone.eval(fade_in_script) {
+                        eprintln!("执行淡入动画失败: {}", e);
+                    }
+                });
+            }
+            
+            // 创建系统托盘
+            let add_record = MenuItem::with_id(app, "add_record", "添加记录", true, None::<&str>)?;
+            let separator = PredefinedMenuItem::separator(app)?;
+            let quit = MenuItem::with_id(app, "quit", "退出程序", true, None::<&str>)?;
+            let menu = MenuBuilder::new(app).items(&[&add_record, &separator, &quit]).build()?;
+            
+            let _tray = TrayIconBuilder::new()
+                .icon(app.default_window_icon().unwrap().clone())
+                .menu(&menu)
+                .show_menu_on_left_click(false)  // 禁用左键显示菜单
+                .on_menu_event(move |app, event| match event.id.as_ref() {
+                    "add_record" => {
+                        // 发送导航到记录页面的事件
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                            let _ = window.emit("navigate-to-record", ());
+                        }
+                    }
+                    "quit" => {
+                        app.exit(0);
+                    }
+                    _ => {}
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
+                        let app = tray.app_handle();
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    }
+                })
+                .build(app)?;
+
+            // 处理窗口关闭事件和更新检查
+            if let Some(window) = app.get_webview_window("main") {
+                let window_for_update = window.clone();
+                let window_for_close_event = window.clone();
+                let app_handle_for_resize = app.app_handle().clone();
+
+                // 监听窗口事件
+                window.on_window_event(move |event| {
+                    use tauri::WindowEvent;
+                    match event {
+                        WindowEvent::CloseRequested { api, .. } => {
+                            // 阻止默认关闭行为
+                            api.prevent_close();
+                            // 隐藏窗口到托盘
+                            let _ = window_for_close_event.hide();
+                        },
+                        WindowEvent::Resized(_) => {
+                            // 窗口大小改变时保存到配置
+                            let app_handle = app_handle_for_resize.clone();
+                            std::thread::spawn(move || {
+                                // 延迟一点时间再保存，避免频繁保存
+                                std::thread::sleep(std::time::Duration::from_millis(500));
+                                
+                                if let Some(window) = app_handle.get_webview_window("main") {
+                                    // 获取逻辑窗口大小和DPI缩放因子
+                                    if let (Ok(logical_size), Ok(scale_factor)) = (window.inner_size(), window.scale_factor()) {
+                                        // 计算真实的物理窗口大小（除以DPI缩放因子）
+                                        let actual_width = (logical_size.width as f64 / scale_factor).round() as u32;
+                                        let actual_height = (logical_size.height as f64 / scale_factor).round() as u32;
+
+                                        let window_config = ConfigManager::get_window_config();
+
+                                        if logical_size.width < window_config.min_width || logical_size.height < window_config.min_height {
+                                            return;
+                                        }
+
+                                        let (safe_width, safe_height) = sanitize_window_size(
+                                            actual_width,
+                                            actual_height,
+                                            window_config.min_width,
+                                            window_config.min_height
+                                        );
+
+                                        // 仅更新窗口大小，避免覆盖并发写入的位置
+                                        if let Err(e) = ConfigManager::update_window_size_only(safe_width, safe_height, &app_handle) {
+                                            eprintln!("保存窗口大小失败: {}", e);
+                                        }
+                                    }
+                                }
+                            });
+                        },
+                        WindowEvent::Moved(_) => {
+                            // 窗口位置改变时保存到配置
+                            let app_handle = app_handle_for_resize.clone();
+                            std::thread::spawn(move || {
+                                // 延迟一点时间再保存，避免频繁保存
+                                std::thread::sleep(std::time::Duration::from_millis(500));
+                                
+                                if let Some(window) = app_handle.get_webview_window("main") {
+                                    // 获取窗口位置
+                                    if let Ok(position) = window.outer_position() {
+                                        // 验证位置有效性：排除特殊值和异常坐标
+                                        if is_valid_window_position(position.x, position.y) {
+                                            // 仅更新窗口位置，避免覆盖并发写入的尺寸
+                                            if let Err(e) = ConfigManager::update_window_position_only(position.x, position.y, &app_handle) {
+                                                eprintln!("保存窗口位置失败: {}", e);
+                                            }
+                                        }
+                                    }
+                                }
+                            });
+                        },
+                        _ => {}
+                    }
+                });
+
+                // 延迟2秒后检查更新，只在程序启动时执行一次
+                std::thread::spawn(move || {
+                    // 等待2秒
+                    std::thread::sleep(std::time::Duration::from_secs(2));
+
+                    // 检查应用配置
+                    let config = ConfigManager::get();
+                    if config.update.check_on_startup {
+                        // 在Tokio运行时上执行异步检查
+                        let rt = tokio::runtime::Runtime::new().unwrap();
+                        rt.block_on(async {
+                            match UpdateService::check_for_update().await {
+                                Ok(result) => {
+                                    if result.has_update {
+                                        // 有更新时发送事件通知前端
+                                        let _ = window_for_update.emit("update-available", result);
+                                    }
+                                },
+                                Err(error) => {
+                                    eprintln!("检查更新失败: {}", error);
+                                }
+                            }
+                        });
+                    }
+                });
+            }
+
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            generate_uuid,
+            get_current_timestamp,
+            get_storage_info,
+            clear_image_cache,
+            clear_all_data,
+            cache_image,
+            get_cached_image_path,
+            read_file_as_base64,
+            remove_cached_image,
+            remove_cached_images,
+            estimate_douban_movie_count,
+            fetch_douban_movies,
+            get_app_config,
+            update_app_config,
+            check_for_update,
+            ignore_version,
+            get_file_info,
+            download_update,
+            cancel_download,
+            open_installer,
+            is_update_downloaded,
+            open_download_url,
+            get_stream_proxy_base_url,
+            exit_app,
+            write_douban_import_log,
+            get_window_config,
+            update_window_config,
+            apply_window_size,
+            set_window_min_size,
+            set_window_max_size,
+            set_window_resizable,
+            get_window_size,
+            save_window_size,
+            get_window_position,
+            set_window_position,
+            save_window_position,
+            save_window_state
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}
+
+fn main() {
+    run();
+}
