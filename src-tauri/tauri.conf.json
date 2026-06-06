@@ -1,0 +1,67 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "FilmTrackPro",
+  "version": "0.4.5",
+  "identifier": "com.yanstu.filmtrackpro",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:10421",
+    "beforeBuildCommand": "npx vite build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "影迹 Pro - 个人影视管理平台",
+        "width": 1280,
+        "height": 800,
+        "decorations": false,
+        "transparent": true,
+        "resizable": true,
+        "fullscreen": false,
+        "visible": false,
+        "minWidth": 800,
+        "minHeight": 600
+      }
+    ],
+    "macOSPrivateApi": true,
+    "security": {
+      "csp": "default-src 'self'; script-src 'self' https://umami.yanstu.cn; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https: http:; font-src 'self' data:; media-src 'self' blob: data: https: http:; connect-src 'self' ipc: http: https: ws: wss:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
+      "capabilities": ["main-capability"]
+    },
+    "withGlobalTauri": false
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "macOS": {
+      "minimumSystemVersion": "10.15"
+    },
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "",
+      "wix": {
+        "language": "zh-CN"
+      },
+      "nsis": {
+        "languages": ["SimpChinese"],
+        "displayLanguageSelector": false
+      }
+    }
+  },
+  "plugins": {
+    "sql": {},
+    "http": null,
+    "shell": {
+      "open": true
+    }
+  }
+}

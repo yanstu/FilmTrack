@@ -1,0 +1,60 @@
+[package]
+name = "filmtrackpro"
+version = "0.4.5"
+description = "影迹 - 追踪您的观影足迹"
+authors = ["yanstu"]
+license = "MIT"
+readme = "../README.md"
+homepage = "https://github.com/yanstu/FilmTrackPro"
+repository = "https://github.com/yanstu/FilmTrackPro"
+documentation = "https://github.com/yanstu/FilmTrackPro/blob/main/README.md"
+keywords = ["tauri", "movie", "tv", "tracker", "manager"]
+categories = ["multimedia", "database", "gui"]
+edition = "2021"
+
+[package.metadata.tauri]
+name = "FilmTrackPro"
+description = "影迹 - 追踪您的观影足迹"
+copyright = "Copyright © 2025 yanstu"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "filmtrackpro_lib"
+path = "src/lib.rs"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "macos-private-api"] }
+tauri-plugin-opener = "2"
+tauri-plugin-sql = { version = "2", features = ["sqlite"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-http = { version = "2", features = ["unsafe-headers"] }
+tauri-plugin-shell = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1.0", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+reqwest = { version = "0.11", features = ["json", "stream"] }
+tokio = { version = "1.0", features = ["full", "macros", "rt-multi-thread"] }
+base64 = "0.21"
+sha2 = "0.10"
+scraper = "0.23.1"
+anyhow = "1.0"
+lazy_static = "1.4.0"
+regex = "1.11.1"
+open = "5.0.1"
+futures-util = "0.3.31"
+axum = "0.7"
+
+[features]
+# this feature is used for production builds or when `devPath` points to the filesystem
+# DO NOT REMOVE!!
+custom-protocol = ["tauri/custom-protocol"]

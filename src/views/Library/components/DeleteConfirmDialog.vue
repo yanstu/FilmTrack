@@ -1,0 +1,47 @@
+<template>
+  <div 
+    v-if="show" 
+    class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50"
+  >
+    <div class="bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl">
+      <h3 class="text-xl font-bold text-gray-900 mb-4">确认删除</h3>
+      <p class="text-gray-700 mb-6">
+        确定删除选中的 {{ selectedCount }} 个作品吗？删了就找不回来了。
+      </p>
+      <div class="mb-4">
+        <TextField 
+          :model-value="confirmInput"
+          @update:model-value="$emit('update:confirmInput', $event)"
+          placeholder="输入 y 确认删除"
+          dense
+        />
+      </div>
+      <div class="flex justify-end space-x-4">
+        <button 
+          @click="$emit('cancel')"
+          class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+        >
+          取消
+        </button>
+        <button 
+          @click="$emit('confirm')"
+          :disabled="confirmInput !== 'y'"
+          class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          删除
+        </button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import TextField from '../../../components/ui/TextField.vue';
+import type { DeleteConfirmDialogProps, DeleteConfirmDialogEmits } from '../types';
+
+type Props = DeleteConfirmDialogProps;
+type Emits = DeleteConfirmDialogEmits;
+
+defineProps<Props>();
+defineEmits<Emits>();
+</script>
