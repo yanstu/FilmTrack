@@ -4,13 +4,13 @@
   "description": "影迹 - 个人影视管理平台",
   "author": "yanstu",
   "license": "MIT",
-  "homepage": "https://github.com/yanstu/FilmTrackPro",
+  "homepage": "https://github.com/yanstu/FilmTrack",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yanstu/FilmTrackPro.git"
+    "url": "https://github.com/yanstu/FilmTrack.git"
   },
   "bugs": {
-    "url": "https://github.com/yanstu/FilmTrackPro/issues"
+    "url": "https://github.com/yanstu/FilmTrack/issues"
   },
   "keywords": [
     "tauri",
@@ -31,9 +31,12 @@
     "tauri": "npx tauri",
     "tauri:dev": "npx tauri dev",
     "tauri:build": "npx tauri build",
+    "release:check": "node scripts/release.mjs --check",
+    "release:local": "node scripts/release.mjs",
+    "release:mac-universal": "node scripts/release.mjs --universal",
     "lint": "npx eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --ignore-path .gitignore",
     "format": "npx prettier --write src/",
-    "test": "node --experimental-strip-types --import ./tests/register-ts-loader.mjs --test tests/run.test.mjs tests/playback.test.mjs tests/responsive.test.mjs tests/performance.test.mjs tests/ui-dropdown.test.mjs tests/ui-polish.test.mjs tests/ui-refine.test.mjs tests/copy.test.mjs tests/ui-pro.test.mjs tests/heatmap.test.mjs",
+    "test": "node --experimental-strip-types --import ./tests/register-ts-loader.mjs --test tests/run.test.mjs tests/playback.test.mjs tests/responsive.test.mjs tests/performance.test.mjs tests/ui-dropdown.test.mjs tests/ui-polish.test.mjs tests/ui-refine.test.mjs tests/copy.test.mjs tests/ui-pro.test.mjs tests/heatmap.test.mjs tests/release.test.mjs",
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
     "type-check": "npx vue-tsc --noEmit"
   },

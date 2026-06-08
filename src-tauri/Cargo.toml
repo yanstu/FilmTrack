@@ -1,13 +1,13 @@
 [package]
 name = "filmtrackpro"
-version = "0.4.5"
+version = "0.5.0"
 description = "影迹 - 追踪您的观影足迹"
 authors = ["yanstu"]
 license = "MIT"
 readme = "../README.md"
-homepage = "https://github.com/yanstu/FilmTrackPro"
-repository = "https://github.com/yanstu/FilmTrackPro"
-documentation = "https://github.com/yanstu/FilmTrackPro/blob/main/README.md"
+homepage = "https://github.com/yanstu/FilmTrack"
+repository = "https://github.com/yanstu/FilmTrack"
+documentation = "https://github.com/yanstu/FilmTrack/blob/pro/README.md"
 keywords = ["tauri", "movie", "tv", "tracker", "manager"]
 categories = ["multimedia", "database", "gui"]
 edition = "2021"
