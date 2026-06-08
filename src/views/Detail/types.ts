@@ -92,6 +92,7 @@ export interface BaseDetailEmits {
 
 export interface DetailSidebarEmits {
   (e: 'editRecord'): void;
+  (e: 'quickRecord'): void;
   (e: 'markEpisodeWatched'): void;
   (e: 'updateMovieInfo'): void;
   (e: 'deleteRecord'): void;
@@ -166,6 +167,7 @@ export interface ActionButtonsProps {
 
 export interface ActionButtonsEmits {
   (e: 'editRecord'): void;
+  (e: 'quickRecord'): void;
   (e: 'markEpisodeWatched'): void;
   (e: 'updateMovieInfo'): void;
   (e: 'deleteRecord'): void;

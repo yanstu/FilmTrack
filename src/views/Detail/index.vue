@@ -62,6 +62,7 @@
             :get-progress-color="getProgressColor"
             :format-date="formatDate"
             @edit-record="editRecord"
+            @quick-record="openQuickRecord"
             @mark-episode-watched="markEpisodeWatched"
             @update-movie-info="updateMovieInfo"
             @delete-record="deleteRecord"
@@ -80,16 +81,28 @@
       @close-dialog="closeDialog"
       @save-record="handleSaveRecord"
     />
+
+    <!-- 一体式快速记录弹窗：进度 + 评分 + 短评 一次提交 -->
+    <QuickRecordDialog
+      v-if="detailState.movie"
+      :is-open="quickRecordVisible"
+      :movie="detailState.movie"
+      @close="quickRecordVisible = false"
+      @save="handleQuickSave"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue';
+import type { Movie } from '../../types';
 // 组件导入
 import DetailHeader from './components/DetailHeader.vue';
 import DetailPlayerPanel from './components/DetailPlayerPanel.vue';
 import DetailContent from './components/DetailContent.vue';
 import DetailSidebar from './components/DetailSidebar.vue';
 import DetailModals from './components/DetailModals.vue';
+import QuickRecordDialog from './components/QuickRecordDialog.vue';
 
 // Composables 导入
 import { useDetailData } from './composables/useDetailData';
@@ -140,6 +153,21 @@ const {
   formatDate,
   isValidUrl
 } = useDetailUtils(detailState);
+
+// 一体式快速记录弹窗
+const quickRecordVisible = ref(false);
+const openQuickRecord = () => {
+  quickRecordVisible.value = true;
+};
+
+const handleQuickSave = async (partial: Partial<Movie>) => {
+  if (!detailState.value.movie) return;
+  // 合并并复用已有的保存链路（含状态规范化）
+  await handleSaveRecord({
+    ...detailState.value.movie,
+    ...partial,
+  } as Movie);
+};
 </script>
 
 <style scoped>

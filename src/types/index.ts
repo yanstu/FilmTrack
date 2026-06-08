@@ -75,6 +75,46 @@ export interface TMDbMovieDetail extends TMDbMovie {
   last_episode_to_air?: TMDbEpisode | null;
   next_episode_to_air?: TMDbEpisode | null;
   type?: string;
+  // append_to_response 带回
+  videos?: TMDbVideosResponse;
+  images?: TMDbImagesResponse;
+}
+
+/** TMDb 视频条目（多用于预告片 / 花絮） */
+export interface TMDbVideo {
+  id: string;
+  iso_639_1?: string;
+  iso_3166_1?: string;
+  key: string;
+  name: string;
+  site: 'YouTube' | 'Vimeo' | string;
+  size: number;
+  type: 'Trailer' | 'Teaser' | 'Clip' | 'Featurette' | 'Behind the Scenes' | 'Bloopers' | string;
+  official?: boolean;
+  published_at?: string;
+}
+
+export interface TMDbVideosResponse {
+  id?: number;
+  results: TMDbVideo[];
+}
+
+/** TMDb 图片条目（剧照 / 海报 / 背景） */
+export interface TMDbImage {
+  aspect_ratio: number;
+  file_path: string;
+  height: number;
+  width: number;
+  iso_639_1: string | null;
+  vote_average: number;
+  vote_count: number;
+}
+
+export interface TMDbImagesResponse {
+  id?: number;
+  backdrops: TMDbImage[];
+  posters: TMDbImage[];
+  stills?: TMDbImage[];
 }
 
 /** TMDb 类型 */

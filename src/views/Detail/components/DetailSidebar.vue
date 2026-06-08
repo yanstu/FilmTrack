@@ -5,6 +5,7 @@
       <ActionButtons
         :movie="movie"
         @edit-record="$emit('editRecord')"
+        @quick-record="$emit('quickRecord')"
         @mark-episode-watched="$emit('markEpisodeWatched')"
         @update-movie-info="$emit('updateMovieInfo')"
       />

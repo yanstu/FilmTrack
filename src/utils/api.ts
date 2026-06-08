@@ -20,6 +20,8 @@ import type {
   CacheItem,
   TMDbImageResponse,
   TMDbGenreResponse,
+  TMDbVideosResponse,
+  TMDbImagesResponse,
   ErrorWithMessage,
 } from '../types';
 import { ref } from 'vue';
@@ -425,6 +427,35 @@ export const tmdbAPI = {
       `/tv/${tvId}`,
       { append_to_response: 'credits,images,videos,recommendations' },
       cacheKey
+    );
+  },
+
+  // 获取视频列表（预告片 / 花絮）
+  async getVideos(
+    tmdbId: number,
+    mediaType: 'movie' | 'tv',
+  ): Promise<ApiResponse<TMDbVideosResponse>> {
+    if (!tmdbId) return { success: false, error: 'tmdb_id 不能为空' };
+    const cacheKey = `videos_${mediaType}_${tmdbId}`;
+    // 优先要中文预告片，但若没有则用任意语言
+    return this._request(
+      `/${mediaType}/${tmdbId}/videos`,
+      { include_video_language: 'zh,null,en' },
+      cacheKey,
+    );
+  },
+
+  // 获取完整图片集（剧照 / 背景 / 海报）
+  async getImages(
+    tmdbId: number,
+    mediaType: 'movie' | 'tv',
+  ): Promise<ApiResponse<TMDbImagesResponse>> {
+    if (!tmdbId) return { success: false, error: 'tmdb_id 不能为空' };
+    const cacheKey = `images_${mediaType}_${tmdbId}`;
+    return this._request(
+      `/${mediaType}/${tmdbId}/images`,
+      { include_image_language: 'zh,null,en' },
+      cacheKey,
     );
   },
 

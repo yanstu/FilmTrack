@@ -218,6 +218,40 @@ export const getNextWatchProgress = (
   return null;
 };
 
+/** 上一集进度：用于"快速记录"弹窗的回退按钮 */
+export const getPreviousWatchProgress = (
+  source?: Pick<
+    ProgressLike,
+    'type' | 'current_season' | 'current_episode' | 'seasons_data' | 'total_seasons' | 'total_episodes'
+  > | null
+): ProgressSnapshot | null => {
+  if (!isTvMovie(source)) {
+    return null;
+  }
+
+  const current = getNormalizedProgress(source);
+
+  if (current.episode > 1) {
+    return {
+      season: current.season,
+      episode: current.episode - 1,
+    };
+  }
+
+  // 已是当前季第 1 集，回退到上一季最后一集
+  const seasonOptions = getSeasonOptions(source?.seasons_data, source?.total_seasons).map(option => option.value);
+  const previousSeasons = seasonOptions.filter(option => option < current.season);
+  if (previousSeasons.length === 0) {
+    return null;
+  }
+  const prevSeason = previousSeasons[previousSeasons.length - 1];
+  const prevSeasonMax = Math.max(1, getSeasonEpisodeCount(source, prevSeason));
+  return {
+    season: prevSeason,
+    episode: prevSeasonMax,
+  };
+};
+
 export const getOverallWatchedEpisodes = (
   source?: Pick<ProgressLike, 'type' | 'current_season' | 'current_episode' | 'seasons_data'> | null
 ): number => {

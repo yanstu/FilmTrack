@@ -36,7 +36,7 @@
     "release:mac-universal": "node scripts/release.mjs --universal",
     "lint": "npx eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --ignore-path .gitignore",
     "format": "npx prettier --write src/",
-    "test": "node --experimental-strip-types --import ./tests/register-ts-loader.mjs --test tests/run.test.mjs tests/playback.test.mjs tests/responsive.test.mjs tests/performance.test.mjs tests/ui-dropdown.test.mjs tests/ui-polish.test.mjs tests/ui-refine.test.mjs tests/copy.test.mjs tests/ui-pro.test.mjs tests/heatmap.test.mjs tests/release.test.mjs tests/cmdk-shortcuts.test.mjs tests/settings-flatten.test.mjs tests/cmdk-trigger.test.mjs",
+    "test": "node --experimental-strip-types --import ./tests/register-ts-loader.mjs --test tests/run.test.mjs tests/playback.test.mjs tests/responsive.test.mjs tests/performance.test.mjs tests/ui-dropdown.test.mjs tests/ui-polish.test.mjs tests/ui-refine.test.mjs tests/copy.test.mjs tests/ui-pro.test.mjs tests/heatmap.test.mjs tests/release.test.mjs tests/cmdk-shortcuts.test.mjs tests/settings-flatten.test.mjs tests/cmdk-trigger.test.mjs tests/detail-media-and-quick-form.test.mjs",
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
     "type-check": "npx vue-tsc --noEmit"
   },
