@@ -34,19 +34,26 @@ describe('日期选择器 Teleport 不被弹窗裁切', () => {
   })
 })
 
-describe('片源/线路移到详情页，设置只管默认', () => {
+describe('片源/线路：详情页隐藏 / 设置弹窗承担默认（后续反转决策）', () => {
   const panel = read('src/views/Detail/components/DetailPlayerPanel.vue')
   const settings = read('src/components/ui/SettingsModal.vue')
 
-  it('详情播放面板提供片源与线路选择', () => {
-    includes(panel, '片源', '应有片源选择')
-    includes(panel, '线路', '应有线路选择')
-    includes(panel, 'handleSelectSource', '应有片源切换处理')
-    includes(panel, 'handleSelectLine', '应有线路切换处理')
+  it('详情页不暴露片源/线路 UI（减少新手心智，统一走设置）', () => {
+    excludes(panel, 'handleSelectSource', '详情页不应再有片源选择 handler')
+    excludes(panel, 'handleSelectLine', '详情页不应再有线路选择 handler')
+    excludes(panel, 'placeholder="选择片源"', '详情页不应再有"选择片源"下拉')
+    excludes(panel, 'placeholder="选择线路"', '详情页不应再有"选择线路"下拉')
   })
 
-  it('设置弹窗不再含「当前影片」按影片选片源/线路', () => {
-    excludes(settings, '当前影片', '设置不应再有当前影片片源/线路')
+  it('错误态保留"去设置换源"作为高级用户出口', () => {
+    includes(panel, 'openPlaybackSettings', '应保留跳设置入口')
+    includes(panel, "section: 'video'", '应跳到设置的"播放"区')
+  })
+
+  it('设置弹窗的"播放"区承担默认片单 / 默认线路 / 续播 / 自动选源等', () => {
+    includes(settings, '默认片单', '应保留默认片单设置')
+    includes(settings, '默认在线播放线路', '应保留默认线路设置')
+    excludes(settings, '当前影片', '设置不应有按影片选片源/线路')
     excludes(settings, 'select-detail-source', '设置不应再发按影片选片源事件')
   })
 })

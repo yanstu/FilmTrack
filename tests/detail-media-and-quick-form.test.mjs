@@ -12,49 +12,21 @@ const includes = (source, needle, message) =>
 const excludes = (source, needle, message) =>
   assert.ok(!source.includes(needle), `${message ?? '存在不该出现的片段'}: ${needle}`)
 
-describe('TMDb API: getVideos / getImages', () => {
+describe('TMDb API: getImages（仅剧照；预告片此前已移除）', () => {
   const api = read('src/utils/api.ts')
   const types = read('src/types/index.ts')
 
-  it('提供独立的 getVideos / getImages 接口（带缓存键 + 语言偏好）', () => {
-    includes(api, 'async getVideos(', '应提供 getVideos')
+  it('提供 getImages 接口（带缓存键 + 语言偏好）；不再有 getVideos', () => {
     includes(api, 'async getImages(', '应提供 getImages')
-    includes(api, "cacheKey = `videos_${mediaType}_${tmdbId}`", '应缓存视频结果')
     includes(api, "cacheKey = `images_${mediaType}_${tmdbId}`", '应缓存图片结果')
-    includes(api, "include_video_language: 'zh,null,en'", '视频应优先中文 / 任意 / 英文')
     includes(api, "include_image_language: 'zh,null,en'", '图片应优先中文 / 任意 / 英文')
+    excludes(api, 'async getVideos(', '不应再保留 getVideos（预告片已移除）')
   })
 
-  it('类型层导出 TMDbVideo / TMDbImage / 对应 Response 类型', () => {
-    includes(types, 'interface TMDbVideo', '应有 TMDbVideo 类型')
-    includes(types, 'interface TMDbVideosResponse', '应有 TMDbVideosResponse')
+  it('类型层导出 TMDbImage 与 TMDbImagesResponse（剧照所需）', () => {
     includes(types, 'interface TMDbImage', '应有 TMDbImage')
     includes(types, 'interface TMDbImagesResponse', '应有 TMDbImagesResponse')
-    includes(types, 'videos?: TMDbVideosResponse', 'TMDbMovieDetail 应可附带 videos')
     includes(types, 'images?: TMDbImagesResponse', 'TMDbMovieDetail 应可附带 images')
-  })
-})
-
-describe('详情页预告片（DetailTrailer）', () => {
-  const c = read('src/views/Detail/components/DetailTrailer.vue')
-
-  it('按优先级挑视频：Trailer > Teaser > Featurette > …，并过滤 YouTube', () => {
-    includes(c, "Trailer: 0", '应有优先级映射')
-    includes(c, "Teaser: 1", '应包含 Teaser 次级')
-    includes(c, "v.site === 'YouTube'", '应仅保留 YouTube 来源')
-    includes(c, 'PRIORITY[a.type]', '应使用优先级排序')
-  })
-
-  it('在 Teleport 弹窗中以 youtube-nocookie 嵌入播放', () => {
-    includes(c, '<Teleport v-if="playerOpen" to="body">', '应 Teleport 到 body 播放')
-    includes(c, 'youtube-nocookie.com/embed/', '应使用 nocookie 域名')
-    includes(c, "event.key === 'Escape'", '应支持 Esc 关闭弹窗')
-  })
-
-  it('未拿到视频时区段安静隐藏，错误时给重试按钮', () => {
-    includes(c, 'v-if="visible"', '应按是否有视频/加载/错误条件显示')
-    includes(c, 'trailer-retry', '错误态应有重试按钮')
-    includes(c, '<Skeleton', '加载态应使用骨架占位')
   })
 })
 
@@ -82,16 +54,15 @@ describe('详情页剧照画廊（DetailStillsGallery）', () => {
   })
 })
 
-describe('详情页：DetailContent 引入预告片 + 剧照画廊', () => {
+describe('详情页：DetailContent 接入剧照画廊（预告片已移除）', () => {
   const c = read('src/views/Detail/components/DetailContent.vue')
 
-  it('在剧情简介下方接入 DetailTrailer 与 DetailStillsGallery，仅当有 tmdb_id 时显示', () => {
-    includes(c, "import DetailTrailer from './DetailTrailer.vue'", '应导入 DetailTrailer')
+  it('剧情简介下方接入 DetailStillsGallery，仅当有 tmdb_id 时显示；不再引入 DetailTrailer', () => {
     includes(c, "import DetailStillsGallery from './DetailStillsGallery.vue'", '应导入 DetailStillsGallery')
-    includes(c, '<DetailTrailer', '应渲染预告片区')
     includes(c, '<DetailStillsGallery', '应渲染剧照画廊')
     includes(c, 'v-if="movie.tmdb_id"', '应在缺少 tmdb_id 时隐藏（避免无效请求）')
     includes(c, "movieMediaType = computed<'movie' | 'tv'>", '应推导 mediaType')
+    excludes(c, 'DetailTrailer', '不应再导入或渲染预告片组件')
   })
 })
 
@@ -149,13 +120,38 @@ describe('ActionButtons / DetailSidebar 接入"快速记录"主操作', () => {
   })
 })
 
-describe('CSP 已为 YouTube iframe 放行', () => {
+describe('CSP 不再为已移除的 YouTube iframe 放行（同步回滚）', () => {
   const tauri = read('src-tauri/tauri.conf.json')
 
-  it('frame-src 包含 youtube-nocookie 与 youtube', () => {
-    includes(tauri, 'frame-src', 'CSP 应显式声明 frame-src')
-    includes(tauri, 'https://www.youtube-nocookie.com', '应放行 nocookie 域名')
-    includes(tauri, 'https://www.youtube.com', '应放行 youtube 域名')
+  it('CSP 不再含 youtube 域名（预告片已移除，CSP 应回滚）', () => {
+    excludes(tauri, 'youtube-nocookie', 'CSP 不应再含 nocookie 域名')
+    excludes(tauri, 'www.youtube.com', 'CSP 不应再含 youtube 域名')
+  })
+})
+
+describe('详情页隐藏「片源 / 线路」UI（减少新手心智，统一走设置 → 播放）', () => {
+  const panel = read('src/views/Detail/components/DetailPlayerPanel.vue')
+
+  it('详情页不再渲染 sourceOptions / lineOptions 两个 select', () => {
+    excludes(panel, 'player-source-grid', '不应再保留片源/线路网格容器')
+    excludes(panel, 'player-source-field', '不应再保留片源/线路字段容器')
+    excludes(panel, 'placeholder="选择片源"', '不应再渲染"选择片源"下拉')
+    excludes(panel, 'placeholder="选择线路"', '不应再渲染"选择线路"下拉')
+  })
+
+  it('对应的 import / handler / disabled 计算也一并清理', () => {
+    excludes(panel, "import HeadlessSelect from", '不应再导入 HeadlessSelect')
+    excludes(panel, 'handleSelectSource', '不应再保留片源选择 handler')
+    excludes(panel, 'handleSelectLine', '不应再保留线路选择 handler')
+    excludes(panel, 'sourceSelectDisabled', '不应再保留片源禁用计算')
+    excludes(panel, 'lineSelectDisabled', '不应再保留线路禁用计算')
+    excludes(panel, 'sourceOptions', '不应再保留 sourceOptions')
+    excludes(panel, 'lineOptions', '不应再保留 lineOptions')
+  })
+
+  it('错误态保留"去设置换源"入口作为高级用户出口', () => {
+    includes(panel, 'openPlaybackSettings', '错误态应有跳设置入口')
+    includes(panel, "section: 'video'", '应跳到设置的"播放"区')
   })
 })
 

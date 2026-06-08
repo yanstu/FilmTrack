@@ -44,9 +44,10 @@
     </div>
 
     <!-- 右侧：设置按钮（两平台都显示）；最小化/关闭按钮仅在非 macOS 显示 -->
-    <div class="flex-1 min-w-0 flex justify-end items-center space-x-1 px-4 window-no-drag">
+    <!-- 外层 data-tauri-drag-region 让右侧空白也可拖动；按钮各自带 window-no-drag -->
+    <div data-tauri-drag-region class="flex-1 min-w-0 flex justify-end items-center space-x-1 px-4">
       <button @click="openSettings"
-        class="w-8 h-8 flex items-center justify-center rounded-md hover:bg-gray-200/60 transition-colors duration-200"
+        class="window-no-drag w-8 h-8 flex items-center justify-center rounded-md hover:bg-gray-200/60 transition-colors duration-200"
         title="设置">
         <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -57,7 +58,7 @@
 
       <template v-if="!isMac">
         <button @click="minimizeWindow"
-          class="w-8 h-8 flex items-center justify-center rounded-md hover:bg-gray-200/60 transition-colors duration-200"
+          class="window-no-drag w-8 h-8 flex items-center justify-center rounded-md hover:bg-gray-200/60 transition-colors duration-200"
           title="最小化">
           <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4" />
@@ -65,7 +66,7 @@
         </button>
 
         <button @click="closeWindow"
-          class="w-8 h-8 flex items-center justify-center rounded-md hover:bg-red-500/10 hover:text-red-600 transition-colors duration-200"
+          class="window-no-drag w-8 h-8 flex items-center justify-center rounded-md hover:bg-red-500/10 hover:text-red-600 transition-colors duration-200"
           :title="getCloseButtonTitle()">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />

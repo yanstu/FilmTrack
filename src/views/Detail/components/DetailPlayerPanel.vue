@@ -46,28 +46,10 @@
     </div>
 
     <div class="player-controls-stack">
-      <div v-if="sourceOptions.length || lineOptions.length" class="player-source-grid">
-        <div class="player-source-field">
-          <span class="player-source-label">片源</span>
-          <HeadlessSelect
-            :model-value="selectedSourceValue"
-            :options="sourceOptions"
-            :disabled="sourceSelectDisabled"
-            placeholder="选择片源"
-            @update:model-value="handleSelectSource"
-          />
-        </div>
-        <div class="player-source-field">
-          <span class="player-source-label">线路</span>
-          <HeadlessSelect
-            :model-value="selectedLineValue"
-            :options="lineOptions"
-            :disabled="lineSelectDisabled"
-            placeholder="选择线路"
-            @update:model-value="handleSelectLine"
-          />
-        </div>
-      </div>
+      <!-- 「片源」「线路」选择已从详情页移除，避免给普通用户增加心智负担。
+           - 自动匹配 + 失败回退已形成闭环（成功率覆盖绝大多数情况）；
+           - 高级用户可在「设置 → 播放」修改默认片单与默认线路；
+           - 当前画面出错时，下方 player-error 仍提供"重试 / 去设置换源"两个入口。 -->
 
       <div class="player-control-card player-episodes-card">
         <div class="player-control-head">
@@ -119,60 +101,14 @@
 import { computed, nextTick, ref, watch } from 'vue';
 import type { DetailPlayerPanelProps } from '../types';
 import PlyrPlayer from './PlyrPlayer.vue';
-import HeadlessSelect from '../../../components/ui/HeadlessSelect.vue';
-import { decodePlaybackCandidateValue, encodePlaybackCandidateValue } from '../playbackCandidate';
 
 type Props = DetailPlayerPanelProps;
 
 const props = defineProps<Props>();
 const activeEpisodeRef = ref<HTMLElement | null>(null);
 
-// 片源（候选片单匹配结果）选择 —— 按影片切换片源属于详情页职责
-const sourceOptions = computed(() =>
-  (props.playerState.sourceSummary?.candidates ?? []).map((item) => ({
-    value: encodePlaybackCandidateValue(item.sourceKey, item.vodId),
-    label: `${item.sourceName} · ${item.qualityLabel}`
-  }))
-);
-
-const selectedSourceValue = computed(() => {
-  const detail = props.playerState.videoDetail;
-  const key = props.playerState.selectedSourceKey;
-  return key && detail?.vodId ? encodePlaybackCandidateValue(key, detail.vodId) : '';
-});
-
-// 线路（当前片源下的播放分组）选择
-const lineOptions = computed(() =>
-  (props.playerState.videoDetail?.sources ?? []).map((item) => ({
-    value: item.name,
-    label: item.name
-  }))
-);
-
-const selectedLineValue = computed(() => props.playerState.selectedGroupName ?? '');
-
-const sourceSelectDisabled = computed(
-  () => isSwitchingBusy.value || props.playerState.isResolvingStream || sourceOptions.value.length === 0
-);
-
-const lineSelectDisabled = computed(
-  () => isSwitchingBusy.value || props.playerState.isResolvingStream || lineOptions.value.length <= 1
-);
-
-function handleSelectSource(value: string | number) {
-  const { sourceKey, vodId } = decodePlaybackCandidateValue(String(value));
-  if (sourceKey && vodId) {
-    void props.playerActions.selectCandidate(sourceKey, vodId, 'manual');
-  }
-}
-
-function handleSelectLine(value: string | number) {
-  const name = String(value);
-  if (name) {
-    void props.playerActions.selectGroup(name);
-  }
-}
-
+// 注：原"片源 / 线路"选择 UI 已从详情页移除（减少新手用户心智负担）；
+// 切换默认片单 / 默认线路统一走「设置 → 播放」，影片层的自动回退闭环不变。
 const currentGroup = computed(() => {
   return props.playerState.videoDetail?.sources.find((item) => item.name === props.playerState.selectedGroupName)
     ?? props.playerState.videoDetail?.sources[0]
@@ -395,27 +331,6 @@ watch(
 
 .player-controls-stack {
   margin-top: 1rem;
-}
-
-.player-source-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 0.85rem;
-  margin-bottom: 1rem;
-}
-
-.player-source-field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  min-width: 0;
-}
-
-.player-source-label {
-  font-size: 0.82rem;
-  font-weight: 700;
-  color: #334155;
-  padding-left: 0.15rem;
 }
 
 .player-control-card {

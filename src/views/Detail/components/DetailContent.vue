@@ -24,14 +24,6 @@
       </div>
     </div>
 
-    <!-- 预告片 -->
-    <DetailTrailer
-      v-if="movie.tmdb_id"
-      :tmdb-id="movie.tmdb_id"
-      :media-type="movieMediaType"
-      style="animation-delay: 0.08s;"
-    />
-
     <!-- 剧照画廊 -->
     <DetailStillsGallery
       v-if="movie.tmdb_id"
@@ -79,7 +71,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import ReplayRecordSection from './ReplayRecordSection.vue';
-import DetailTrailer from './DetailTrailer.vue';
 import DetailStillsGallery from './DetailStillsGallery.vue';
 import type { DetailContentProps } from '../types';
 

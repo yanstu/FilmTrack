@@ -26,7 +26,7 @@
     ],
     "macOSPrivateApi": true,
     "security": {
-      "csp": "default-src 'self'; script-src 'self' https://umami.yanstu.cn; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https: http:; font-src 'self' data:; media-src 'self' blob: data: https: http:; connect-src 'self' ipc: http: https: ws: wss:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; frame-src 'self' https://www.youtube-nocookie.com https://www.youtube.com",
+      "csp": "default-src 'self'; script-src 'self' https://umami.yanstu.cn; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https: http:; font-src 'self' data:; media-src 'self' blob: data: https: http:; connect-src 'self' ipc: http: https: ws: wss:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
       "capabilities": ["main-capability"]
     },
     "withGlobalTauri": false
