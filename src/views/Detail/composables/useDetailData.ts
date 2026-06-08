@@ -14,6 +14,7 @@ import {
   getNormalizedProgress,
   normalizeProgressForStatus
 } from '../../../utils/seasonProgress';
+import { toast } from '../../../utils/toast';
 
 const normalizeAirStatus = (status?: string): Movie['air_status'] => {
   switch (status) {
@@ -129,7 +130,7 @@ export function useDetailData(
       // 重新加载背景图片
       await loadBackdropImages();
 
-      showDialog('success', '更新成功', '影视信息已更新');
+      toast.success('影视信息已更新', { hint: '海报、季集与简介已刷新' });
     } catch (error) {
       console.error('更新失败:', error);
       showDialog('error', '更新失败', '获取最新信息失败，请重试');
@@ -147,14 +148,14 @@ export function useDetailData(
           return;
         }
       }
-      
+
       const normalizedMovie = normalizeProgressForStatus({
         ...updatedMovie,
         updated_at: new Date().toISOString()
       }) as Movie;
       await movieStore.updateMovie(normalizedMovie);
       detailState.value.movie = { ...normalizedMovie };
-      showDialog('success', '保存成功', '记录已更新');
+      toast.success('记录已保存');
     } catch (error) {
       console.error('保存失败:', error);
       showDialog('error', '保存失败', '保存失败，请重试');

@@ -1,5 +1,5 @@
 <template>
-  <div class="h-full overflow-auto bg-gradient-to-br from-blue-50/50 via-white to-purple-50/50">
+  <div class="detail-page-root h-full overflow-auto">
     <!-- 加载状态 -->
     <div v-if="detailState.isLoading" class="flex items-center justify-center h-full">
       <div class="text-center">
@@ -23,6 +23,14 @@
 
     <!-- 详情内容 -->
     <div v-else class="detail-page-shell">
+      <!-- Hero Ambient 色彩延伸层：让影片色调在 Hero 之外继续延伸 -->
+      <div
+        v-if="ambientBackdropUrl"
+        class="detail-ambient"
+        :style="{ backgroundImage: `url(${ambientBackdropUrl})` }"
+      ></div>
+      <div v-else class="detail-ambient detail-ambient-fallback"></div>
+
       <!-- 顶部横幅 -->
       <DetailHeader
         :movie="detailState.movie"
@@ -94,7 +102,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import type { Movie } from '../../types';
 // 组件导入
 import DetailHeader from './components/DetailHeader.vue';
@@ -154,6 +162,21 @@ const {
   isValidUrl
 } = useDetailUtils(detailState);
 
+// Hero Ambient：取 backdrop（或首张候选剧照）作为虚化色彩延伸层
+const ambientBackdropUrl = computed<string>(() => {
+  const movie = detailState.value.movie;
+  if (movie?.backdrop_path) {
+    const url = getBackdropURL(movie.backdrop_path || undefined);
+    if (url) return url;
+  }
+  const first = detailState.value.backdropImages?.[0];
+  if (first) {
+    const url = getBackdropURL(first);
+    return url || '';
+  }
+  return '';
+});
+
 // 一体式快速记录弹窗
 const quickRecordVisible = ref(false);
 const openQuickRecord = () => {
@@ -175,13 +198,88 @@ const handleQuickSave = async (partial: Partial<Movie>) => {
   animation: spin 1s linear infinite;
 }
 
+/* 详情页根容器：用本影色调延伸到 Hero 之外（电影感） */
+.detail-page-root {
+  position: relative;
+  background:
+    linear-gradient(
+      to bottom,
+      rgba(248, 250, 252, 0.6) 0%,
+      rgba(255, 255, 255, 0.92) 600px,
+      rgba(248, 250, 252, 1) 100%
+    );
+}
+
 .detail-page-shell {
+  position: relative;
   max-width: 1500px;
   margin: 0 auto;
+  z-index: 1;
+}
+
+/* Hero Ambient：取 backdrop 作为虚化色斑，向下渐隐 —— 整页被影片色染过 */
+.detail-ambient {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 880px;
+  background-position: center top;
+  background-size: cover;
+  background-repeat: no-repeat;
+  filter: blur(72px) saturate(1.55);
+  opacity: 0.4;
+  transform: scale(1.1); /* 模糊后边缘会变软；预先放大避免空白边 */
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 1) 0%,
+    rgba(0, 0, 0, 1) 32%,
+    rgba(0, 0, 0, 0.6) 60%,
+    rgba(0, 0, 0, 0) 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 1) 0%,
+    rgba(0, 0, 0, 1) 32%,
+    rgba(0, 0, 0, 0.6) 60%,
+    rgba(0, 0, 0, 0) 100%
+  );
+  pointer-events: none;
+  z-index: 0;
+  animation: ambient-fade-in 0.6s ease-out both;
+}
+
+/* 无 backdrop 时的优雅兜底色斑（与首页同调蓝紫渐变） */
+.detail-ambient-fallback {
+  background: radial-gradient(
+    ellipse 1200px 600px at 50% 0%,
+    rgba(59, 130, 246, 0.12) 0%,
+    rgba(167, 139, 250, 0.08) 40%,
+    transparent 75%
+  );
+  filter: none;
+  transform: none;
+}
+
+@keyframes ambient-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 0.4;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .detail-ambient {
+    animation: none;
+  }
 }
 
 .detail-page-body {
   padding: 1.5rem 1.5rem 2.5rem;
+  position: relative;
+  z-index: 1;
 }
 
 .detail-player-block {

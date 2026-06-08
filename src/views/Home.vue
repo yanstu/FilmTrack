@@ -52,11 +52,11 @@
               </div>
               <div>
                 <p class="stats-card-label">总电影数</p>
-                <p class="stats-card-value">{{ statistics.total_movies }}</p>
+                <p class="stats-card-value">{{ animatedTotal }}</p>
               </div>
             </div>
           </div>
-          
+
           <div class="stats-card stats-card-green">
             <div class="stats-card-content">
               <div class="stats-card-icon-wrap">
@@ -64,11 +64,11 @@
               </div>
               <div>
                 <p class="stats-card-label">已完成</p>
-                <p class="stats-card-value">{{ statistics.completed_movies }}</p>
+                <p class="stats-card-value">{{ animatedCompleted }}</p>
               </div>
             </div>
           </div>
-          
+
           <div class="stats-card stats-card-yellow">
             <div class="stats-card-content">
               <div class="stats-card-icon-wrap">
@@ -76,11 +76,11 @@
               </div>
               <div>
                 <p class="stats-card-label">平均评分</p>
-                <p class="stats-card-value">{{ statistics.average_rating > 0 ? formatRating(statistics.average_rating / 2) : '0.0' }}</p>
+                <p class="stats-card-value">{{ averageRatingDisplay }}</p>
               </div>
             </div>
           </div>
-          
+
           <div class="stats-card stats-card-indigo">
             <div class="stats-card-content">
               <div class="stats-card-icon-wrap">
@@ -88,11 +88,11 @@
               </div>
               <div>
                 <p class="stats-card-label">本月观看</p>
-                <p class="stats-card-value">{{ statistics.movies_this_month }}</p>
+                <p class="stats-card-value">{{ animatedThisMonth }}</p>
               </div>
             </div>
           </div>
-          
+
           <div class="stats-card stats-card-pink">
             <div class="stats-card-content">
               <div class="stats-card-icon-wrap">
@@ -100,7 +100,7 @@
               </div>
               <div>
                 <p class="stats-card-label">今年观看</p>
-                <p class="stats-card-value">{{ statistics.movies_this_year }}</p>
+                <p class="stats-card-value">{{ animatedThisYear }}</p>
               </div>
             </div>
           </div>
@@ -398,9 +398,10 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { formatRating, getStatusLabel, getStatusBadgeClass } from '../utils/constants'
+import { useCountUp } from '../composables/useCountUp'
 import { APP_CONFIG } from '../../config/app.config'
 import {
   Plus as PlusIcon,
@@ -448,6 +449,35 @@ const {
   refreshReminders,
   initializeData
 } = useHomeData()
+
+// 统计卡数字增长动画：5 张卡 50ms 错峰，800ms ease-out
+const animatedTotal = useCountUp(
+  computed(() => statistics.value.total_movies ?? 0),
+  { duration: 800, delay: 0 }
+)
+const animatedCompleted = useCountUp(
+  computed(() => statistics.value.completed_movies ?? 0),
+  { duration: 800, delay: 50 }
+)
+// 平均评分另做：原始数值在 0-10 区间，显示时除以 2（→0-5）保留 1 位小数
+const animatedAverageRating = useCountUp(
+  computed(() => {
+    const raw = statistics.value.average_rating ?? 0
+    return raw > 0 ? raw / 2 : 0
+  }),
+  { duration: 800, delay: 100, decimals: 1 }
+)
+const averageRatingDisplay = computed(() =>
+  animatedAverageRating.value > 0 ? formatRating(animatedAverageRating.value) : '0.0'
+)
+const animatedThisMonth = useCountUp(
+  computed(() => statistics.value.movies_this_month ?? 0),
+  { duration: 800, delay: 150 }
+)
+const animatedThisYear = useCountUp(
+  computed(() => statistics.value.movies_this_year ?? 0),
+  { duration: 800, delay: 200 }
+)
 
 const getActionTypeLabel = (type: string) => {
   const labels: Record<string, string> = {

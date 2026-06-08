@@ -31,6 +31,9 @@
         @close="clearGlobalError"
       />
 
+      <!-- 全局成功 / 信息 Toast 栈（右上角，可栈叠） -->
+      <ToastStack />
+
       <!-- 全局命令面板（⌘/Ctrl+K） -->
       <CommandPalette />
 
@@ -92,6 +95,8 @@ import Navigation from './components/common/Navigation.vue';
 import LoadingOverlay from './components/common/LoadingOverlay.vue';
 import ErrorToast from './components/common/ErrorToast.vue';
 import CommandPalette from './components/common/CommandPalette.vue';
+import ToastStack from './components/common/ToastStack.vue';
+import { toast } from './utils/toast';
 import ContextMenu from './components/common/ContextMenu.vue';
 import ShortcutsHelp from './components/common/ShortcutsHelp.vue';
 import Modal from './components/ui/Modal.vue';
@@ -290,6 +295,7 @@ const handleSettingsSave = (settings: AppSettings) => {
   appStore.updateSettings(settings);
   settingsVisible.value = false;
   updateCheckNotice.value = null;
+  toast.success('设置已保存', { hint: '已应用最新的偏好设置' });
 };
 
 // 处理更新

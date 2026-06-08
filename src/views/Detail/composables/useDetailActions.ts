@@ -5,7 +5,6 @@
 import { type Ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useMovieStore } from '../../../stores/movie';
-import { useAppStore } from '../../../stores/app';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import type { Movie } from '../../../types';
 import type { DetailState, DialogState } from '../types';
@@ -14,6 +13,7 @@ import {
   getWatchProgressSummary,
   normalizeProgressForStatus
 } from '../../../utils/seasonProgress';
+import { toast } from '../../../utils/toast';
 
 export function useDetailActions(
   detailState: Ref<DetailState>,
@@ -21,7 +21,6 @@ export function useDetailActions(
 ) {
   const router = useRouter();
   const movieStore = useMovieStore();
-  const appStore = useAppStore();
 
   // 导航操作
   const goBack = () => {
@@ -31,10 +30,10 @@ export function useDetailActions(
   // 内容操作
   const copyTitle = (text: string) => {
     navigator.clipboard.writeText(text).then(() => {
-      appStore.modalService.showInfo('复制成功', `已复制"${text}"到剪贴板`);
+      toast.success('已复制到剪贴板', { hint: text });
     }).catch(err => {
       console.error('复制失败:', err);
-      appStore.modalService.showError('复制失败', '无法复制到剪贴板');
+      toast.error('复制失败', { hint: '剪贴板权限可能被拒绝' });
     });
   };
 
@@ -101,13 +100,15 @@ export function useDetailActions(
   const deleteRecord = async () => {
     if (!detailState.value.movie) return;
 
-    showDialog('confirm', '确认删除', `确定删除《${detailState.value.movie.title}》的记录吗？删了就找不回来了。`, async () => {
+    const title = detailState.value.movie.title;
+    showDialog('confirm', '确认删除', `确定删除《${title}》的记录吗？删了就找不回来了。`, async () => {
       try {
         await movieStore.deleteMovie(detailState.value.movie!.id);
+        toast.success('已删除', { hint: `《${title}》` });
         router.push('/');
       } catch (error) {
         console.error('删除失败:', error);
-        showDialog('error', '删除失败', '删除失败，请重试');
+        toast.error('删除失败', { hint: '请重试或稍后再试' });
       }
     });
   };
