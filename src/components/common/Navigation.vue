@@ -70,61 +70,6 @@ const isActive = (routeConfig: { name: string; path?: string }) => {
 </script>
 
 <style scoped>
-.nav-item {
-  position: relative;
-  overflow: hidden;
-}
-
-/* 液态动画效果 */
-.nav-item::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
-  transition: left 0.6s ease-out;
-}
-
-.nav-item:hover::before {
-  left: 100%;
-}
-
-/* 选中状态的特殊效果 */
-.nav-item.router-link-active {
-  position: relative;
-}
-
-.nav-item.router-link-active::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.1));
-  border-radius: 0.5rem;
-  pointer-events: none;
-}
-
-/* 悬停时的微妙发光效果 */
-.nav-item:hover {
-  box-shadow: 0 0 20px rgba(99, 102, 241, 0.1);
-}
-
-/* 自定义滚动条 */
-.navigation-scrollbar::-webkit-scrollbar {
-  width: 4px;
-}
-
-.navigation-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.navigation-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(156, 163, 175, 0.3);
-  border-radius: 2px;
-}
-
-.navigation-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(156, 163, 175, 0.5);
-}
+/* 局部仅保留导航容器特有规则；选中/悬停态样式统一在 main.css 的 .nav-item 链路里
+   （macOS Sidebar 风：左侧蓝条 + 浅蓝底 + 蓝色文字）。 */
 </style>

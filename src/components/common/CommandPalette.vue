@@ -334,25 +334,32 @@ if (typeof window !== 'undefined') {
 </script>
 
 <style scoped>
+/* 命令面板：不加遮罩、不模糊背景，纯悬浮面板（Spotlight 风）
+   overlay 完全透明但仍接收 click（点空白关闭，保留 modal 阻塞行为） */
 .cmdk-overlay {
   position: fixed;
   inset: 0;
   z-index: 70;
-  background: rgba(15, 23, 42, 0.4);
-  backdrop-filter: blur(4px);
+  background: transparent;
   display: flex;
   align-items: flex-start;
   justify-content: center;
   padding: 12vh 16px 16px;
 }
 
+/* 面板自身阴影加强一档以补偿无遮罩时的层次感（Apple Spotlight 三层投影） */
 .cmdk-panel {
   width: 100%;
   max-width: 640px;
-  background: rgba(255, 255, 255, 0.98);
+  background: rgba(255, 255, 255, 0.985);
+  -webkit-backdrop-filter: saturate(1.4) blur(20px);
+  backdrop-filter: saturate(1.4) blur(20px);
   border-radius: 14px;
-  border: 1px solid rgba(0, 0, 0, 0.05);
-  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.24), 0 6px 16px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow:
+    0 32px 64px -16px rgba(15, 23, 42, 0.34),
+    0 12px 24px -8px rgba(15, 23, 42, 0.18),
+    0 1px 2px rgba(15, 23, 42, 0.06);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -521,14 +528,22 @@ if (typeof window !== 'undefined') {
   color: #374151;
 }
 
+/* 入场：面板"被聚焦"——透明度 + 微下落 + 一帧轻微 scale，与 Apple Spotlight 一致 */
 .cmdk-overlay-enter-active,
 .cmdk-overlay-leave-active {
-  transition: opacity 160ms ease;
+  transition: opacity 140ms ease;
 }
 
-.cmdk-overlay-enter-active .cmdk-panel,
+.cmdk-overlay-enter-active .cmdk-panel {
+  transition:
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 200ms ease-out;
+}
+
 .cmdk-overlay-leave-active .cmdk-panel {
-  transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1), opacity 160ms ease;
+  transition:
+    transform 140ms cubic-bezier(0.4, 0, 0.6, 1),
+    opacity 120ms ease-in;
 }
 
 .cmdk-overlay-enter-from,
@@ -536,9 +551,24 @@ if (typeof window !== 'undefined') {
   opacity: 0;
 }
 
-.cmdk-overlay-enter-from .cmdk-panel,
+.cmdk-overlay-enter-from .cmdk-panel {
+  opacity: 0;
+  transform: translateY(-6px) scale(0.985);
+}
+
 .cmdk-overlay-leave-to .cmdk-panel {
   opacity: 0;
-  transform: translateY(-8px) scale(0.98);
+  transform: translateY(-4px) scale(0.992);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cmdk-overlay-enter-active .cmdk-panel,
+  .cmdk-overlay-leave-active .cmdk-panel {
+    transition: opacity 120ms ease;
+  }
+  .cmdk-overlay-enter-from .cmdk-panel,
+  .cmdk-overlay-leave-to .cmdk-panel {
+    transform: none;
+  }
 }
 </style>
