@@ -19,12 +19,23 @@ export interface ModalState {
   onCancel?: () => void;
 }
 
+export type ErrorTone = 'error' | 'warning' | 'info';
+
+export interface ErrorOptions {
+  /** 提示色调；不指定时上层会按消息内容启发式判断 */
+  tone?: ErrorTone;
+  /** 提供"重试"按钮 */
+  retry?: () => void;
+}
+
 export const useAppStore = defineStore('app', () => {
   // 加载状态
   const isLoading = ref(false);
-  
+
   // 错误信息
   const error = ref<string | null>(null);
+  const errorTone = ref<ErrorTone | null>(null);
+  const errorRetry = ref<(() => void) | null>(null);
   
   // 模态框状态
   const modalState = reactive<ModalState>({
@@ -45,14 +56,18 @@ export const useAppStore = defineStore('app', () => {
     isLoading.value = status;
   }
   
-  // 设置错误信息
-  function setError(message: string | null) {
+  // 设置错误信息（可选附带 tone 与 retry）
+  function setError(message: string | null, options: ErrorOptions = {}) {
     error.value = message;
+    errorTone.value = message ? options.tone ?? null : null;
+    errorRetry.value = message && options.retry ? options.retry : null;
   }
-  
+
   // 清除错误信息
   function clearError() {
     error.value = null;
+    errorTone.value = null;
+    errorRetry.value = null;
   }
   
   // 模态框服务
@@ -202,6 +217,8 @@ export const useAppStore = defineStore('app', () => {
   return {
     isLoading,
     error,
+    errorTone,
+    errorRetry,
     modalState,
     settings,
     setLoading,

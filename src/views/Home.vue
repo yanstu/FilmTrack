@@ -23,17 +23,26 @@
       <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 animate-fade-in-up" style="animation-delay: 100ms;">
         <h2 class="text-xl font-semibold text-gray-900 mb-6">统计概览</h2>
         
-        <div v-if="loadingStats" class="flex items-center justify-center py-8">
-          <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <span class="ml-3 text-gray-600">加载统计数据...</span>
+        <div v-if="loadingStats" class="grid gap-4 sm:gap-5 [grid-template-columns:repeat(auto-fit,minmax(160px,1fr))]">
+          <div v-for="i in 5" :key="`stat-sk-${i}`" class="stats-card stats-card-blue">
+            <div class="stats-card-content gap-3">
+              <Skeleton variant="circle" />
+              <div class="flex-1 space-y-2">
+                <Skeleton variant="line" width="60%" />
+                <Skeleton variant="line" width="40%" height="18px" />
+              </div>
+            </div>
+          </div>
         </div>
-        
-        <div v-else-if="statsError" class="text-center py-8">
-          <p class="text-red-600 mb-4">{{ statsError }}</p>
-          <button @click="loadStatistics" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-            重试
-          </button>
-        </div>
+
+        <EmptyState
+          v-else-if="statsError"
+          tone="danger"
+          title="统计数据没能加载出来"
+          :description="statsError"
+          action-label="重试"
+          @action="loadStatistics"
+        />
         
         <div v-else class="grid gap-4 sm:gap-5 [grid-template-columns:repeat(auto-fit,minmax(160px,1fr))]">
           <div class="stats-card stats-card-blue">
@@ -113,15 +122,25 @@
           </router-link>
         </div>
 
-        <div v-if="loadingWatching || loadingReminders" class="flex items-center justify-center py-8 text-gray-600">
-          <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-          <span class="ml-3">整理待办中...</span>
+        <div
+          v-if="loadingWatching || loadingReminders"
+          class="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(260px,1fr))]"
+        >
+          <div v-for="i in 3" :key="`todo-sk-${i}`" class="todo-card-skeleton">
+            <Skeleton variant="line" width="35%" height="14px" />
+            <Skeleton variant="line" width="80%" height="16px" />
+            <Skeleton variant="line" width="50%" />
+            <Skeleton variant="line" width="65%" />
+          </div>
         </div>
 
-        <div v-else-if="actionItems.length === 0" class="rounded-2xl border border-dashed border-gray-200 bg-gray-50/80 px-6 py-10 text-center">
-          <p class="text-gray-600 font-medium">现在没有待办</p>
-          <p class="text-gray-400 text-sm mt-2">开始追剧或补几条在看记录后，再回来看看。</p>
-        </div>
+        <EmptyState
+          v-else-if="actionItems.length === 0"
+          tone="info"
+          title="现在没有待办"
+          description="开始追剧或补几条在看记录后，再回来看看。"
+          hint="也可以从命令面板（⌘K）直接打开任意作品"
+        />
 
         <div v-else class="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(260px,1fr))]">
           <button
@@ -167,23 +186,38 @@
           </button>
         </div>
 
-        <div v-if="loadingReminders" class="flex items-center justify-center py-8 text-gray-600">
-          <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-          <span class="ml-3">加载更新提醒...</span>
+        <div
+          v-if="loadingReminders"
+          class="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(248px,1fr))]"
+        >
+          <div v-for="i in 4" :key="`rm-sk-${i}`" class="update-reminder-skeleton">
+            <Skeleton variant="block" width="64px" height="96px" />
+            <div class="flex-1 space-y-2">
+              <Skeleton variant="line" width="70%" height="14px" />
+              <Skeleton variant="line" width="40%" />
+              <Skeleton variant="line" width="55%" />
+            </div>
+          </div>
         </div>
 
-        <div v-else-if="reminderError" class="text-center py-8">
-          <p class="text-red-600 mb-4">{{ reminderError }}</p>
-          <button @click="refreshReminders" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-            重试
-          </button>
-        </div>
+        <EmptyState
+          v-else-if="reminderError"
+          tone="danger"
+          title="提醒没能加载出来"
+          :description="reminderError"
+          action-label="重试"
+          :action-icon="RefreshCcwIcon"
+          @action="refreshReminders"
+        />
 
-        <div v-else-if="reminderGroups.length === 0" class="text-center py-12">
-          <BellRingIcon class="w-12 h-12 text-gray-300 mx-auto mb-3" />
-          <p class="text-gray-500 mb-2">近期没有即将更新的剧集</p>
-          <p class="text-gray-400 text-sm">记录更多正在播出的电视剧即可收到提醒</p>
-        </div>
+        <EmptyState
+          v-else-if="reminderGroups.length === 0"
+          tone="info"
+          :icon="BellRingIcon"
+          title="近期没有即将更新的剧集"
+          description="记录更多正在播出的电视剧，影迹会自动整理出未来 7 天的播出表。"
+          hint="今天有新集时会通过桌面通知提醒你（需要授予通知权限）"
+        />
 
         <div v-else class="space-y-6">
           <div
@@ -229,30 +263,36 @@
           <h2 class="text-xl font-semibold text-gray-900">正在追剧</h2>
         </div>
         
-        <div v-if="loadingWatching" class="flex items-center justify-center py-12">
-          <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <span class="ml-3 text-gray-600">加载追剧数据...</span>
+        <div
+          v-if="loadingWatching"
+          class="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(132px,1fr))]"
+        >
+          <div v-for="i in 6" :key="`wt-sk-${i}`" class="space-y-2">
+            <Skeleton variant="poster" />
+            <Skeleton variant="line" width="80%" />
+          </div>
         </div>
-        
-        <div v-else-if="watchingError" class="text-center py-12">
-          <p class="text-red-600 mb-4">{{ watchingError }}</p>
-          <button @click="() => loadWatchingMovies()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-            重试
-          </button>
-        </div>
-        
-        <div v-else-if="watchingMovies.length === 0" class="text-center py-12">
-          <FilmIcon class="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <p class="text-gray-500 text-lg mb-2">还没有在追的作品</p>
-          <p class="text-gray-400 text-sm mb-6">挑一部开始，观看进度会自动显示在这里</p>
-          <router-link
-            to="/record"
-            class="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200"
-          >
-            <PlusIcon class="w-5 h-5 mr-2" />
-            添加新作品
-          </router-link>
-        </div>
+
+        <EmptyState
+          v-else-if="watchingError"
+          tone="danger"
+          title="追剧数据没能加载出来"
+          :description="watchingError"
+          action-label="重试"
+          @action="() => loadWatchingMovies()"
+        />
+
+        <EmptyState
+          v-else-if="watchingMovies.length === 0"
+          tone="info"
+          :icon="FilmIcon"
+          title="还没有在追的作品"
+          description="挑一部开始，观看进度会自动显示在这里。"
+          action-label="添加新作品"
+          :action-icon="PlusIcon"
+          hint="也可以按 ⌘/Ctrl+3 直接跳到添加记录页"
+          @action="navigateToRecord"
+        />
         
         <div v-else class="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(132px,1fr))]">
           <div
@@ -294,22 +334,32 @@
           </router-link>
         </div>
         
-        <div v-if="loadingHistory" class="flex items-center justify-center py-8">
-          <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-          <span class="ml-3 text-gray-600">加载重刷记录...</span>
+        <div
+          v-if="loadingHistory"
+          class="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(132px,1fr))]"
+        >
+          <div v-for="i in 6" :key="`hist-sk-${i}`" class="space-y-2">
+            <Skeleton variant="poster" />
+            <Skeleton variant="line" width="80%" />
+          </div>
         </div>
-        
-        <div v-else-if="historyError" class="text-center py-8">
-          <p class="text-red-600 mb-4">{{ historyError }}</p>
-          <button @click="loadReplayHistory" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-            重试
-          </button>
-        </div>
-        
-        <div v-else-if="recentHistory.length === 0" class="text-center py-8">
-          <ClockIcon class="w-12 h-12 text-gray-400 mx-auto mb-3" />
-          <p class="text-gray-500 mb-2">还没有最近观看记录</p>
-        </div>
+
+        <EmptyState
+          v-else-if="historyError"
+          tone="danger"
+          title="最近观看没能加载出来"
+          :description="historyError"
+          action-label="重试"
+          @action="loadReplayHistory"
+        />
+
+        <EmptyState
+          v-else-if="recentHistory.length === 0"
+          tone="info"
+          :icon="ClockIcon"
+          title="还没有最近观看记录"
+          description="标记完成或重刷一部作品后，最近观看就会出现在这里。"
+        />
         
         <div v-else class="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(132px,1fr))]">
           <div
@@ -349,20 +399,27 @@
 
 <script setup lang="ts">
 import { onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { formatRating, getStatusLabel, getStatusBadgeClass } from '../utils/constants'
 import { APP_CONFIG } from '../../config/app.config'
-import { 
-  PlusIcon,
-  FilmIcon,
-  CheckCircleIcon,
-  StarIcon,
-  CalendarIcon,
-  TrendingUpIcon,
-  ClockIcon,
-  BellRingIcon
+import {
+  Plus as PlusIcon,
+  Film as FilmIcon,
+  CheckCircle as CheckCircleIcon,
+  Star as StarIcon,
+  Calendar as CalendarIcon,
+  TrendingUp as TrendingUpIcon,
+  Clock as ClockIcon,
+  BellRing as BellRingIcon,
+  RefreshCcw as RefreshCcwIcon,
 } from 'lucide-vue-next'
 import CachedImage from '../components/ui/CachedImage.vue'
+import Skeleton from '../components/common/Skeleton.vue'
+import EmptyState from '../components/common/EmptyState.vue'
 import { useHomeData } from './Home/composables/useHomeData'
+
+const router = useRouter()
+const navigateToRecord = () => router.push('/record')
 
 const {
   movieStore,
@@ -732,5 +789,26 @@ onMounted(() => {
   font-size: 0.8rem;
   line-height: 1.45;
   color: #64748b;
+}
+
+/* —— 骨架占位 —— */
+.todo-card-skeleton {
+  border-radius: 1.25rem;
+  border: 1px solid rgba(226, 232, 240, 0.7);
+  background: rgba(255, 255, 255, 0.7);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.update-reminder-skeleton {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.7rem;
+  border: 1px solid rgba(243, 244, 246, 1);
+  border-radius: 0.85rem;
+  background: rgba(249, 250, 251, 0.6);
 }
 </style>

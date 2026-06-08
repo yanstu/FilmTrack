@@ -83,7 +83,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, shallowRef, onMounted, nextTick, watch } from 'vue';
+import { ref, computed, shallowRef, onBeforeUnmount, onMounted, nextTick, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useMovieStore } from '../../stores/movie';
 import { useAppStore } from '../../stores/app';
@@ -367,10 +367,19 @@ watch(searchQuery, () => {
   infiniteScroll.refresh();
 });
 
+// 监听 LibraryStates 空态发出的"清除搜索"动作
+const handleClearSearch = () => {
+  searchQuery.value = '';
+  selectedType.value = '';
+  selectedStatus.value = '';
+};
+
 // 初始化
 onMounted(() => {
   // 加载保存的视图模式
   loadViewMode();
+
+  window.addEventListener('library-clear-search', handleClearSearch);
 
   // 从查询参数初始化筛选器
   if (route.query.status) {
@@ -387,6 +396,10 @@ onMounted(() => {
   nextTick(() => {
     infiniteScroll.triggerLoad();
   });
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('library-clear-search', handleClearSearch);
 });
 </script>
 

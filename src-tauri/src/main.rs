@@ -563,6 +563,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             let stream_proxy_state = start_stream_proxy_server()?;
             app.manage(stream_proxy_state);
@@ -683,23 +684,44 @@ pub fn run() {
                 });
             }
             
-            // 创建系统托盘
-            let add_record = MenuItem::with_id(app, "add_record", "添加记录", true, None::<&str>)?;
-            let separator = PredefinedMenuItem::separator(app)?;
+            // 创建系统托盘菜单：显示主窗 / 添加记录 / 检查更新 / 退出
+            let show_main = MenuItem::with_id(app, "show_main", "显示主窗口", true, None::<&str>)?;
+            let add_record = MenuItem::with_id(app, "add_record", "快速添加记录", true, None::<&str>)?;
+            let check_update = MenuItem::with_id(app, "check_update", "检查更新", true, None::<&str>)?;
+            let separator1 = PredefinedMenuItem::separator(app)?;
+            let separator2 = PredefinedMenuItem::separator(app)?;
             let quit = MenuItem::with_id(app, "quit", "退出程序", true, None::<&str>)?;
-            let menu = MenuBuilder::new(app).items(&[&add_record, &separator, &quit]).build()?;
-            
+            let menu = MenuBuilder::new(app)
+                .items(&[&show_main, &separator1, &add_record, &check_update, &separator2, &quit])
+                .build()?;
+
             let _tray = TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
+                .tooltip("影迹 Pro · FilmTrackPro")
                 .menu(&menu)
                 .show_menu_on_left_click(false)  // 禁用左键显示菜单
                 .on_menu_event(move |app, event| match event.id.as_ref() {
-                    "add_record" => {
-                        // 发送导航到记录页面的事件
+                    "show_main" => {
                         if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.unminimize();
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    }
+                    "add_record" => {
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.unminimize();
                             let _ = window.show();
                             let _ = window.set_focus();
                             let _ = window.emit("navigate-to-record", ());
+                        }
+                    }
+                    "check_update" => {
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.unminimize();
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                            let _ = window.emit("trigger-check-update", ());
                         }
                     }
                     "quit" => {

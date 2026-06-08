@@ -7,6 +7,7 @@ import { tvReminderService } from '../../../services/reminder';
 import type { Movie, Statistics, TVReminderGroup } from '../../../types';
 import { getWatchProgressSummary } from '../../../utils/seasonProgress';
 import { buildMovieActionItems, type MovieActionItem } from '../../../utils/watchInsights';
+import { sendDesktopNotification } from '../../../services/desktop-notifications';
 
 interface LoadWatchingOptions {
   silent?: boolean;
@@ -153,6 +154,34 @@ export function useHomeData() {
     }
   };
 
+  const todayKey = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+
+  /**
+   * 把"今天就播"的剧集合并为一条桌面通知；同一日内多次刷新只推一次（去重）。
+   */
+  const notifyTodayAirings = async (groups: TVReminderGroup[]) => {
+    const today = todayKey();
+    const todayItems = groups
+      .filter((group) => group.date && group.date.slice(0, 10) === today)
+      .flatMap((group) => group.items);
+    if (todayItems.length === 0) return;
+
+    const titles = todayItems.slice(0, 3).map((item) => item.title);
+    const more = todayItems.length - titles.length;
+    const body = more > 0
+      ? `${titles.join('、')} 等共 ${todayItems.length} 部今天有新集`
+      : `${titles.join('、')} 今天有新集`;
+
+    await sendDesktopNotification({
+      key: `tv-airings-${today}`,
+      title: '今天有新集上线',
+      body,
+    });
+  };
+
   const loadUpdateReminders = async (movies?: Movie[]) => {
     try {
       loadingReminders.value = true;
@@ -162,6 +191,7 @@ export function useHomeData() {
       if (result.success && result.data) {
         reminderGroups.value = result.data;
         actionItems.value = buildMovieActionItems(watchingMovies.value, result.data.flatMap(group => group.items));
+        void notifyTodayAirings(result.data);
       } else {
         throw new Error(result.error || '获取更新提醒失败');
       }

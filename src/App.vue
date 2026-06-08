@@ -23,7 +23,22 @@
       <LoadingOverlay v-if="isGlobalLoading" />
 
       <!-- 全局错误提示 -->
-      <ErrorToast v-if="globalError" :message="globalError" @close="clearGlobalError" />
+      <ErrorToast
+        v-if="globalError"
+        :message="globalError"
+        :tone="globalErrorTone"
+        :on-retry="globalErrorRetry"
+        @close="clearGlobalError"
+      />
+
+      <!-- 全局命令面板（⌘/Ctrl+K） -->
+      <CommandPalette />
+
+      <!-- 全局键盘快捷键帮助（⌘/Ctrl+/） -->
+      <ShortcutsHelp :visible="shortcutsHelpVisible" @close="shortcutsHelpVisible = false" />
+
+      <!-- 全局右键菜单容器 -->
+      <ContextMenu />
 
       <!-- 全局模态框 -->
       <Modal
@@ -76,7 +91,11 @@ import TitleBar from './components/common/TitleBar.vue';
 import Navigation from './components/common/Navigation.vue';
 import LoadingOverlay from './components/common/LoadingOverlay.vue';
 import ErrorToast from './components/common/ErrorToast.vue';
+import CommandPalette from './components/common/CommandPalette.vue';
+import ContextMenu from './components/common/ContextMenu.vue';
+import ShortcutsHelp from './components/common/ShortcutsHelp.vue';
 import Modal from './components/ui/Modal.vue';
+import { useShortcuts } from './composables/useShortcuts';
 import type { UpdateCheckResult, AppSettings, UpdateCheckNotice, SourceProfileSummary } from './types';
 import type { SettingsSectionId } from './components/ui/types';
 import { getSourceProfiles, whenSourceProfilesRefreshed } from './services/video-source';
@@ -162,7 +181,21 @@ const isGlobalLoading = computed(() => appStore.isLoading);
 
 // 全局错误状态
 const globalError = computed(() => appStore.error);
+const globalErrorTone = computed<'error' | 'warning' | 'info'>(() => {
+  if (appStore.errorTone) return appStore.errorTone;
+  const msg = appStore.error || '';
+  if (/网络|超时|TLS|handshake|未连接|connect|offline|断开/i.test(msg)) {
+    return 'warning';
+  }
+  return 'error';
+});
+const globalErrorRetry = computed<(() => void) | undefined>(() =>
+  typeof appStore.errorRetry === 'function' ? appStore.errorRetry : undefined
+);
 const clearGlobalError = () => appStore.clearError();
+
+// 快捷键帮助弹窗
+const shortcutsHelpVisible = ref(false);
 
 // 模态框状态
 const modalState = computed(() => appStore.modalState);
@@ -180,6 +213,7 @@ const updateCheckNotice = ref<UpdateCheckNotice | null>(null);
 const sourceProfiles = ref<SourceProfileSummary[]>([]);
 const sourceProfilesLoading = ref(false);
 let unlistenNavigateToRecord: (() => void) | null = null;
+let unlistenTriggerCheckUpdate: (() => void) | null = null;
 let updateService: null | {
   setUpdateCallback: (callback: (result: UpdateCheckResult) => void) => void;
   initUpdateListener: () => Promise<void>;
@@ -334,21 +368,39 @@ const loadSourceProfiles = async () => {
 
 
 
-// 监听键盘快捷键
-const handleKeyDown = (e: KeyboardEvent) => {
-  // 打开设置：Windows/Linux 用 Ctrl+，macOS 用 Cmd+，
-  if ((e.metaKey || e.ctrlKey) && e.key === ',') {
-    e.preventDefault();
-    handleOpenSettings();
+const openCommandPalette = () => {
+  window.dispatchEvent(new CustomEvent('open-command-palette'));
+};
+
+const navigateTo = (name: string) => {
+  if (router.currentRoute.value.name !== name) {
+    void router.push({ name });
   }
+};
+
+// 全局快捷键
+useShortcuts([
+  { key: 'k', mod: true, handler: openCommandPalette, label: '命令面板' },
+  { key: ',', mod: true, handler: () => handleOpenSettings(), label: '打开设置' },
+  { key: '/', mod: true, handler: () => (shortcutsHelpVisible.value = true), label: '快捷键帮助' },
+  { key: '1', mod: true, handler: () => navigateTo('Home'), label: '跳首页' },
+  { key: '2', mod: true, handler: () => navigateTo('Library'), label: '跳影视库' },
+  { key: '3', mod: true, handler: () => navigateTo('Record'), label: '跳添加记录' },
+  { key: '4', mod: true, handler: () => navigateTo('History'), label: '跳历史' },
+  { key: '5', mod: true, handler: () => navigateTo('Import'), label: '跳导入' },
+]);
+
+const handleTriggerCheckUpdate = () => {
+  void handleCheckForUpdate();
 };
 
 // 挂载和卸载事件监听器
 onMounted(async () => {
-  window.addEventListener('keydown', handleKeyDown);
-
   // 监听打开设置事件
   window.addEventListener('open-settings', handleOpenSettings);
+
+  // 命令面板的"检查更新"动作
+  window.addEventListener('trigger-check-update', handleTriggerCheckUpdate);
 
   ensureAnalyticsConsent();
   syncAnalyticsScript(appStore.settings.usageAnalyticsEnabled);
@@ -363,6 +415,11 @@ onMounted(async () => {
   // 监听导航到添加记录页面事件
   unlistenNavigateToRecord = await listen('navigate-to-record', () => {
     router.push('/record');
+  });
+
+  // 监听托盘菜单的"检查更新"事件
+  unlistenTriggerCheckUpdate = await listen('trigger-check-update', () => {
+    handleTriggerCheckUpdate();
   });
 
   // 设置更新回调
@@ -387,11 +444,15 @@ watch(
 );
 
 onBeforeUnmount(() => {
-  window.removeEventListener('keydown', handleKeyDown);
   window.removeEventListener('open-settings', handleOpenSettings);
+  window.removeEventListener('trigger-check-update', handleTriggerCheckUpdate);
   if (unlistenNavigateToRecord) {
     unlistenNavigateToRecord();
     unlistenNavigateToRecord = null;
+  }
+  if (unlistenTriggerCheckUpdate) {
+    unlistenTriggerCheckUpdate();
+    unlistenTriggerCheckUpdate = null;
   }
 });
 </script>

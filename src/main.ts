@@ -44,10 +44,19 @@ document.documentElement.classList.add(
   isMacOS() ? 'platform-mac' : isWindows() ? 'platform-win' : 'platform-other'
 );
 
-// 屏蔽默认右键菜单，但在输入框/文本域内保留（以支持复制粘贴）
+// 屏蔽默认右键菜单，但保留以下场景：
+// 1) 输入框 / 文本域 / contenteditable —— 系统菜单（复制粘贴）
+// 2) 带 [data-context-menu] 的元素 —— 应用内自定义右键菜单（卡片等）
 window.addEventListener('contextmenu', (event) => {
   const target = event.target as HTMLElement | null;
-  if (target && target.closest('input, textarea, [contenteditable="true"]')) {
+  if (!target) {
+    event.preventDefault();
+    return;
+  }
+  if (target.closest('input, textarea, [contenteditable="true"]')) {
+    return;
+  }
+  if (target.closest('[data-context-menu]')) {
     return;
   }
   event.preventDefault();

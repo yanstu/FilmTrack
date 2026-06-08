@@ -1,5 +1,9 @@
 <template>
-  <div class="movie-card bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-all duration-300 group cursor-pointer">
+  <div
+    class="movie-card bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-all duration-300 group cursor-pointer"
+    data-context-menu
+    @contextmenu.prevent="handleContextMenu"
+  >
     <!-- 海报区域 -->
     <div class="relative aspect-[2/3] overflow-hidden">
       <CachedImage
@@ -112,13 +116,22 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useRouter } from 'vue-router';
 import { tmdbAPI } from '../../utils/api';
 import { APP_CONFIG } from '../../../config/app.config';
 import type { ParsedMovie } from '../../types';
 import { getStatusLabel, formatRating, getTypeLabel, getStatusBadgeClass } from '../../utils/constants';
-import { Star as StarIcon } from 'lucide-vue-next';
+import {
+  Copy as CopyIcon,
+  Edit3 as EditIcon,
+  ExternalLink as ExternalLinkIcon,
+  Eye as EyeIcon,
+  Star as StarIcon,
+  Trash2 as TrashIcon,
+} from 'lucide-vue-next';
 import CachedImage from '../ui/CachedImage.vue';
 import { getWatchProgressSummary } from '../../utils/seasonProgress';
+import { useContextMenu, type ContextMenuEntry } from '../../composables/useContextMenu';
 
 interface Props {
   movie: ParsedMovie;
@@ -155,6 +168,74 @@ const formatDate = (dateString: string) => {
 
 const handleImageError = () => {
   // 处理图片加载错误
+};
+
+const router = useRouter();
+const { openMenu } = useContextMenu();
+
+const openInTmdb = async () => {
+  const id = props.movie.tmdb_id;
+  if (!id) return;
+  const url = props.movie.type === 'tv'
+    ? `https://www.themoviedb.org/tv/${id}`
+    : `https://www.themoviedb.org/movie/${id}`;
+  try {
+    const { open } = await import('@tauri-apps/plugin-shell');
+    await open(url);
+  } catch {
+    window.open(url, '_blank');
+  }
+};
+
+const copyTitle = async () => {
+  const text = props.movie.title;
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+    }
+  } catch {
+    // 静默失败，浏览器若拒绝则跳过
+  }
+};
+
+const handleContextMenu = (event: MouseEvent) => {
+  const entries: ContextMenuEntry[] = [
+    {
+      id: 'open',
+      label: '打开详情',
+      icon: EyeIcon,
+      onSelect: () => router.push({ name: 'Detail', params: { id: props.movie.id } }),
+    },
+    {
+      id: 'edit',
+      label: '编辑记录',
+      icon: EditIcon,
+      onSelect: () => emit('edit', props.movie),
+    },
+    { id: 'd1', divider: true },
+    {
+      id: 'copy',
+      label: '复制标题',
+      icon: CopyIcon,
+      onSelect: () => { void copyTitle(); },
+    },
+    {
+      id: 'tmdb',
+      label: '在 TMDb 中打开',
+      icon: ExternalLinkIcon,
+      disabled: !props.movie.tmdb_id,
+      onSelect: () => { void openInTmdb(); },
+    },
+    { id: 'd2', divider: true },
+    {
+      id: 'delete',
+      label: '删除记录',
+      icon: TrashIcon,
+      danger: true,
+      onSelect: () => emit('delete', props.movie.id),
+    },
+  ];
+  openMenu(event, entries);
 };
 </script>
 
