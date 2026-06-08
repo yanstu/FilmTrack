@@ -37,9 +37,13 @@ describe('发布工作流（GitHub Actions / tauri-action）', () => {
 describe('版本一致性与出包脚本', () => {
   const tauriConf = JSON.parse(read('src-tauri/tauri.conf.json'))
   const cargo = read('src-tauri/Cargo.toml')
+  const cargoLock = read('src-tauri/Cargo.lock')
   const lock = read('package-lock.json')
   const eslintConfig = read('eslint.config.js')
   const cargoVersion = (cargo.match(/^version\s*=\s*"([^"]+)"/m) || [])[1]
+  const tauriCrateVersion = (
+    cargoLock.match(/\[\[package\]\]\nname = "tauri"\nversion = "([^"]+)"/) || []
+  )[1]
   const script = read('scripts/release.mjs')
   const pkg = JSON.parse(read('package.json'))
 
@@ -55,6 +59,20 @@ describe('版本一致性与出包脚本', () => {
     includes(script, '版本不一致', '脚本应校验版本一致性')
     includes(script, '--check', '脚本应支持仅校验模式')
     includes(script, '--universal', '脚本应支持 macOS universal 构建')
+  })
+
+  it('根级 @tauri-apps/api 与 Rust 侧 tauri crate 保持同一 major/minor，避免 CI 出包失败', () => {
+    const apiVersion = pkg.dependencies['@tauri-apps/api']
+    assert.ok(apiVersion, 'package.json 应声明根级 @tauri-apps/api')
+    assert.ok(tauriCrateVersion, 'Cargo.lock 应能解析 tauri crate 版本')
+
+    const normalizeMinor = (version) => version.replace(/^[~^]/, '').split('.').slice(0, 2).join('.')
+
+    assert.equal(
+      normalizeMinor(apiVersion),
+      normalizeMinor(tauriCrateVersion),
+      `@tauri-apps/api (${apiVersion}) 应与 tauri crate (${tauriCrateVersion}) 保持同一 major/minor`
+    )
   })
 
   it('lint 使用本地 ESLint 依赖与 flat config，而不是依赖 npx 临时版本', () => {
