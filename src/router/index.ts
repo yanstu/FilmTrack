@@ -28,7 +28,7 @@ const routes: RouteRecordRaw[] = [
     meta: { title: '影视库' }
   },
   {
-    path: '/Record',
+    path: '/record',
     name: 'Record',
     component: Record,
     meta: { title: '记录' }
@@ -40,17 +40,29 @@ const routes: RouteRecordRaw[] = [
     meta: { title: '历史' }
   },
   {
-    path: '/Detail/:id',
+    path: '/detail/:id',
     name: 'Detail',
     component: Detail,
     props: true,
     meta: { title: '详情' }
   },
   {
-    path: '/Import',
+    path: '/import',
     name: 'Import',
     component: Import,
     meta: { title: '数据导入导出' }
+  },
+  {
+    path: '/Record',
+    redirect: '/record'
+  },
+  {
+    path: '/Detail/:id',
+    redirect: (to) => `/detail/${to.params.id}`
+  },
+  {
+    path: '/Import',
+    redirect: '/import'
   }
 ];
 

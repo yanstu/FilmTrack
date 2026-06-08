@@ -37,8 +37,11 @@ describe('发布工作流（GitHub Actions / tauri-action）', () => {
 describe('版本一致性与出包脚本', () => {
   const tauriConf = JSON.parse(read('src-tauri/tauri.conf.json'))
   const cargo = read('src-tauri/Cargo.toml')
+  const lock = read('package-lock.json')
+  const eslintConfig = read('eslint.config.js')
   const cargoVersion = (cargo.match(/^version\s*=\s*"([^"]+)"/m) || [])[1]
   const script = read('scripts/release.mjs')
+  const pkg = JSON.parse(read('package.json'))
 
   it('tauri.conf.json 与 Cargo.toml 版本一致', () => {
     assert.equal(
@@ -52,6 +55,28 @@ describe('版本一致性与出包脚本', () => {
     includes(script, '版本不一致', '脚本应校验版本一致性')
     includes(script, '--check', '脚本应支持仅校验模式')
     includes(script, '--universal', '脚本应支持 macOS universal 构建')
+  })
+
+  it('lint 使用本地 ESLint 依赖与 flat config，而不是依赖 npx 临时版本', () => {
+    includes(lock, '"eslint"', 'package-lock 应锁定 eslint 依赖')
+    includes(eslintConfig, 'export default', '项目应提供 eslint flat config')
+    includes(eslintConfig, 'vue', '配置应覆盖 Vue 文件')
+    includes(eslintConfig, 'typescript', '配置应覆盖 TypeScript 文件')
+    includes(
+      pkg.scripts.lint,
+      'eslint .',
+      'lint 脚本应直接调用 eslint'
+    )
+    excludes(
+      pkg.scripts.lint,
+      '--ignore-path',
+      'lint 脚本不应再使用不兼容的 --ignore-path'
+    )
+    excludes(
+      pkg.scripts.lint,
+      'npx eslint',
+      'lint 脚本不应依赖 npx 临时拉取 eslint'
+    )
   })
 })
 

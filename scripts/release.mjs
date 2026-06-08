@@ -7,7 +7,7 @@
  *   node scripts/release.mjs                        # 校验 + 类型检查 + 测试 + 构建当前平台
  *   node scripts/release.mjs --skip-tests           # 跳过测试直接构建
  *   node scripts/release.mjs --universal            # macOS 构建 universal 通用包
- *   node scripts/release.mjs --tag v0.5.0           # 额外校验 tag 与版本号一致
+ *   node scripts/release.mjs --tag v0.5.1           # 额外校验 tag 与版本号一致
  *
  * 说明：跨平台安装包（Intel mac / Windows）请用 GitHub Actions（推送 v* 标签触发）。
  *      本地脚本只构建“当前操作系统”的产物。

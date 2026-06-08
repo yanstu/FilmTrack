@@ -10,15 +10,37 @@ import { DEFAULT_APP_SETTINGS } from '../appSettings';
  * 存储服务类
  */
 export class StorageService {
+  private static getStorage(): Storage | null {
+    const storage = globalThis.localStorage
+
+    if (
+      !storage ||
+      typeof storage.getItem !== 'function' ||
+      typeof storage.setItem !== 'function' ||
+      typeof storage.removeItem !== 'function' ||
+      typeof storage.clear !== 'function' ||
+      typeof storage.key !== 'function'
+    ) {
+      return null
+    }
+
+    return storage
+  }
+
   /**
    * 设置存储项
    * @param key 存储键
    * @param value 存储值
    */
   static set<T>(key: string, value: T): void {
+    const storage = this.getStorage()
+    if (!storage) {
+      return
+    }
+
     try {
       const stringValue = JSON.stringify(value);
-      localStorage.setItem(key, stringValue);
+      storage.setItem(key, stringValue);
     } catch (error) {
       console.error(`存储数据失败 [${key}]:`, error);
     }
@@ -31,8 +53,13 @@ export class StorageService {
    * @returns 存储值或默认值
    */
   static get<T>(key: string, defaultValue?: T): T | undefined {
+    const storage = this.getStorage()
+    if (!storage) {
+      return defaultValue
+    }
+
     try {
-      const value = localStorage.getItem(key);
+      const value = storage.getItem(key);
       
       if (value === null) {
         return defaultValue;
@@ -50,8 +77,13 @@ export class StorageService {
    * @param key 存储键
    */
   static remove(key: string): void {
+    const storage = this.getStorage()
+    if (!storage) {
+      return
+    }
+
     try {
-      localStorage.removeItem(key);
+      storage.removeItem(key);
     } catch (error) {
       console.error(`移除数据失败 [${key}]:`, error);
     }
@@ -61,8 +93,13 @@ export class StorageService {
    * 清除所有存储
    */
   static clear(): void {
+    const storage = this.getStorage()
+    if (!storage) {
+      return
+    }
+
     try {
-      localStorage.clear();
+      storage.clear();
     } catch (error) {
       console.error('清除所有数据失败:', error);
     }
@@ -74,7 +111,12 @@ export class StorageService {
    * @returns 是否存在
    */
   static has(key: string): boolean {
-    return localStorage.getItem(key) !== null;
+    const storage = this.getStorage()
+    if (!storage) {
+      return false
+    }
+
+    return storage.getItem(key) !== null;
   }
   
   /**
@@ -82,9 +124,14 @@ export class StorageService {
    * @returns 存储键数组
    */
   static keys(): string[] {
+    const storage = this.getStorage()
+    if (!storage) {
+      return []
+    }
+
     const keys: string[] = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
+    for (let i = 0; i < storage.length; i++) {
+      const key = storage.key(i);
       if (key) {
         keys.push(key);
       }
@@ -97,6 +144,11 @@ export class StorageService {
    * 当数据格式出现问题时，尝试修复存储的数据
    */
   static repairStorage(): void {
+    const storage = this.getStorage()
+    if (!storage) {
+      return
+    }
+
     try {
       
       // 获取所有存储键
@@ -106,7 +158,7 @@ export class StorageService {
       for (const key of keys) {
         try {
           // 尝试直接获取原始值
-          const rawValue = localStorage.getItem(key);
+          const rawValue = storage.getItem(key);
           
           if (rawValue) {
             // 对于缓存类键，如果出现问题直接重置
@@ -114,10 +166,10 @@ export class StorageService {
               try {
                 JSON.parse(rawValue);
                 // 即使格式正确，也重置为空对象，避免后续问题
-                localStorage.setItem(key, JSON.stringify({}));
+                storage.setItem(key, JSON.stringify({}));
                 continue;
               } catch (jsonError) {
-                localStorage.setItem(key, JSON.stringify({}));
+                storage.setItem(key, JSON.stringify({}));
                 continue;
               }
             }
@@ -130,16 +182,16 @@ export class StorageService {
               // 无法解析为JSON，数据可能已损坏
               // 对于重要的系统键，尝试重置为默认值
               if (key === StorageKey.SETTINGS) {
-                localStorage.setItem(key, JSON.stringify(DEFAULT_APP_SETTINGS));
+                storage.setItem(key, JSON.stringify(DEFAULT_APP_SETTINGS));
               } else {
                 // 对于其他键，如果损坏则删除
-                localStorage.removeItem(key);
+                storage.removeItem(key);
               }
             }
           }
         } catch (keyError) {
           // 如果处理过程中出错，删除该键
-          localStorage.removeItem(key);
+          storage.removeItem(key);
         }
       }
 

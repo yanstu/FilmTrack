@@ -176,8 +176,8 @@ npm run release:mac-universal  # macOS 构建 universal 通用包
 1. 升级版本号：同时修改 `src-tauri/tauri.conf.json` 与 `src-tauri/Cargo.toml`（保持一致，可用 `npm run release:check` 校验）。
 2. 提交改动并打标签推送：
    ```bash
-   git commit -am "release: v0.5.0"
-   git tag v0.5.0
+   git commit -am "release: v0.5.1"
+   git tag v0.5.1
    git push origin pro --tags
    ```
 3. 工作流自动在 **macOS + Windows** runner 上构建，并把安装包发布到一个 **Release 草稿**。
@@ -214,7 +214,7 @@ FilmTrack/
 ```bash
 npm run type-check   # 类型检查
 npm test             # 运行单元/契约测试
-npm run lint         # ESLint 修复
+npm run lint         # 运行 ESLint
 npm run format       # Prettier 格式化
 ```
 

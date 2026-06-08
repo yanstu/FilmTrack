@@ -34,6 +34,7 @@ describe('全局快捷键管理器（useShortcuts）', () => {
 
 describe('全局命令面板（CommandPalette）', () => {
   const src = read('src/components/common/CommandPalette.vue')
+  const router = read('src/router/index.ts')
 
   it('监听 open-command-palette 事件、支持键盘导航', () => {
     includes(src, 'open-command-palette', '应监听打开事件')
@@ -54,8 +55,23 @@ describe('全局命令面板（CommandPalette）', () => {
     includes(src, 'movieStore.movies', '应能搜索作品')
   })
 
+  it('路由 path 统一为小写，并兼容旧的大写地址', () => {
+    includes(router, "path: '/record'", '记录页 path 应统一为小写')
+    includes(router, "path: '/detail/:id'", '详情页 path 应统一为小写')
+    includes(router, "path: '/import'", '导入页 path 应统一为小写')
+    includes(router, "redirect: '/record'", '旧的 /Record 应兼容跳到小写路径')
+    includes(router, "redirect: (to) => `/detail/${to.params.id}`", '旧的 /Detail/:id 应兼容跳到小写路径')
+    includes(router, "redirect: '/import'", '旧的 /Import 应兼容跳到小写路径')
+  })
+
   it('搜索结果对命中词做高亮（mark 包裹）', () => {
     includes(src, '<mark>', '应对匹配文本加高亮')
+  })
+
+  it('打开时不再绘制背后遮罩，只保留面板本身', () => {
+    includes(src, 'class="cmdk-overlay"', '应保留外层点击关闭容器')
+    excludes(src, 'background: rgba(15, 23, 42, 0.4);', '不应再绘制黑色半透明遮罩')
+    excludes(src, 'backdrop-filter: blur(4px);', '不应再对背景做模糊遮罩')
   })
 })
 

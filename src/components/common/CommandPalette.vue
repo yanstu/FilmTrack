@@ -338,8 +338,6 @@ if (typeof window !== 'undefined') {
   position: fixed;
   inset: 0;
   z-index: 70;
-  background: rgba(15, 23, 42, 0.4);
-  backdrop-filter: blur(4px);
   display: flex;
   align-items: flex-start;
   justify-content: center;

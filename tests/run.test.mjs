@@ -21,6 +21,7 @@ import {
 import * as apiModule from '../src/utils/api.ts'
 import { getMovieHistoryDate } from '../src/utils/historyDate.ts'
 import { isMacOS, isWindows } from '../src/utils/platform.ts'
+import StorageService from '../src/utils/storage/index.ts'
 
 const originalGetInstance = DatabaseConnection.getInstance
 const originalGetRawInstance = DatabaseConnection.getRawInstance
@@ -34,6 +35,7 @@ const originalSearchMoviesExact = apiModule.tmdbAPI.searchMoviesExact
 const originalSearchTVShowsExact = apiModule.tmdbAPI.searchTVShowsExact
 const originalGetMovieDetails = apiModule.tmdbAPI.getMovieDetails
 const originalGetTVDetails = apiModule.tmdbAPI.getTVDetails
+const originalLocalStorage = globalThis.localStorage
 
 const dbMock = {
   execute: async () => {},
@@ -76,6 +78,7 @@ afterEach(() => {
   apiModule.tmdbAPI.searchTVShowsExact = originalSearchTVShowsExact
   apiModule.tmdbAPI.getMovieDetails = originalGetMovieDetails
   apiModule.tmdbAPI.getTVDetails = originalGetTVDetails
+  globalThis.localStorage = originalLocalStorage
 })
 
 describe('MovieDAO.existsMovie', () => {
@@ -656,5 +659,25 @@ describe('seasonProgress', () => {
       season: 2,
       episode: 4
     })
+  })
+})
+
+describe('StorageService', () => {
+  it('在没有可用 localStorage 的环境里静默回退默认值，不打印错误', () => {
+    const originalError = console.error
+    const errorCalls = []
+
+    globalThis.localStorage = undefined
+    console.error = (...args) => {
+      errorCalls.push(args)
+    }
+
+    try {
+      const value = StorageService.get('filmtrack-settings', { source: 'default' })
+      assert.deepEqual(value, { source: 'default' })
+      assert.equal(errorCalls.length, 0)
+    } finally {
+      console.error = originalError
+    }
   })
 })

@@ -1,6 +1,6 @@
 name: Release
 
-# 推送形如 v0.5.0 的标签即触发：在 macOS / Windows runner 上构建安装包并发布到 GitHub Releases。
+# 推送形如 v0.5.1 的标签即触发：在 macOS / Windows runner 上构建安装包并发布到 GitHub Releases。
 # 也可在 Actions 页面手动触发（workflow_dispatch）。
 on:
   push:
