@@ -141,14 +141,18 @@ describe('设置弹窗 SettingsModal 窄宽不溢出', () => {
   const settings = read('src/components/ui/SettingsModal.vue')
 
   it('窄宽时为 flex 列、宽屏切换为侧栏网格', () => {
-    expectIncludes(settings, 'flex h-full min-h-0 flex-col gap-4', '设置弹窗窄宽应为 flex 列')
-    expectIncludes(settings, 'lg:grid lg:grid-cols-[220px_minmax(0,1fr)]', '宽屏应切换为侧栏网格')
+    expectIncludes(settings, 'flex h-full min-h-0 flex-col', '设置弹窗窄宽应为 flex 列')
+    // 宽屏切换为侧栏网格（侧栏宽度可调，不绑定具体像素）
+    expectIncludes(settings, 'lg:grid lg:grid-cols-[', '宽屏应切换为侧栏网格')
+    expectIncludes(settings, '_minmax(0,1fr)]', '内容列应允许弹性占据剩余宽度')
   })
 
   it('窄宽时导航转横向、面板占满剩余高度可滚动', () => {
     expectIncludes(settings, 'overflow-x-auto', '窄宽导航应横向滚动')
     expectIncludes(settings, 'lg:flex-col', '宽屏导航恢复纵向')
-    expectIncludes(settings, 'mt-1 hidden text-xs text-gray-500 lg:block', '窄宽应隐藏导航描述以节省高度')
+    // 窄宽隐藏导航描述以节省高度（颜色/字号 token 可自由调整，只要 hidden+lg:block 即可）
+    expectIncludes(settings, 'settings-nav-description', '应有导航描述节点')
+    expectIncludes(settings, 'hidden text-[11px] text-gray-400 lg:block', '窄宽应隐藏导航描述')
     expectIncludes(settings, 'min-w-0 min-h-0 flex-1 overflow-y-auto', '面板应占满剩余高度并可滚动')
   })
 })

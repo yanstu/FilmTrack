@@ -31,7 +31,7 @@
         </aside>
 
         <div class="settings-panel">
-          <section v-if="activeSection === 'general'" class="space-y-6">
+          <section v-if="activeSection === 'general'">
             <div class="setting-section setting-section-compact">
               <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
@@ -104,7 +104,7 @@
             </div>
           </section>
 
-          <section v-else-if="activeSection === 'video'" class="space-y-6">
+          <section v-else-if="activeSection === 'video'">
             <div class="setting-section">
               <h3 class="setting-section-title">片单偏好</h3>
               <div class="setting-item setting-item-stack">
@@ -194,7 +194,7 @@
             </div>
           </section>
 
-          <section v-else-if="activeSection === 'storage'" class="space-y-6">
+          <section v-else-if="activeSection === 'storage'">
             <div class="setting-section">
               <h3 class="setting-section-title">存储信息</h3>
               <div class="setting-info-grid">
@@ -227,7 +227,7 @@
             </div>
           </section>
 
-          <section v-else class="space-y-6">
+          <section v-else>
             <div class="setting-section">
               <h3 class="setting-section-title">数据清理</h3>
               <div class="setting-item">
@@ -556,8 +556,12 @@ watch(
 </script>
 
 <style scoped>
+/* —— 设置弹窗：扁平化、扁平分组、无嵌套卡片、紧凑留白 ——
+   思路：Modal panel 自身已是白色卡片，里面再叠灰底+两个白卡完全多余；
+   这里直接在 Modal 内做两栏布局，不引入任何额外背景色块/边框。 */
+
 .settings-modal-content {
-  @apply flex-1 overflow-hidden bg-gray-50/70 px-0 py-0;
+  @apply flex-1 overflow-hidden px-0 py-0;
 }
 
 .settings-modal-footer {
@@ -565,40 +569,50 @@ watch(
 }
 
 .settings-shell {
-  @apply flex h-full min-h-0 flex-col gap-4 p-4 sm:p-6 lg:grid lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-6;
+  @apply flex h-full min-h-0 flex-col lg:grid lg:grid-cols-[180px_minmax(0,1fr)] lg:gap-0;
 }
 
+/* —— 左侧导航：无边框、无阴影、轻分隔线 —— */
 .settings-nav {
-  @apply flex shrink-0 gap-2 overflow-x-auto rounded-2xl border border-gray-200 bg-white p-2 shadow-sm lg:h-full lg:min-h-0 lg:shrink lg:flex-col lg:overflow-x-visible lg:overflow-y-auto lg:p-3;
+  @apply flex shrink-0 gap-1 overflow-x-auto border-b border-gray-100 px-4 pt-3 pb-2
+         lg:h-full lg:min-h-0 lg:shrink lg:flex-col lg:overflow-x-visible lg:overflow-y-auto
+         lg:border-b-0 lg:border-r lg:border-gray-100 lg:px-3 lg:py-4;
 }
 
 .settings-nav-item {
-  @apply shrink-0 whitespace-nowrap rounded-xl border border-transparent px-4 py-2 text-left transition-all duration-200 hover:border-blue-100 hover:bg-blue-50/70 lg:shrink lg:whitespace-normal lg:py-3;
+  @apply shrink-0 whitespace-nowrap rounded-md px-3 py-1.5 text-left transition-colors duration-150
+         text-gray-600 hover:bg-gray-100 hover:text-gray-900
+         lg:shrink lg:whitespace-normal lg:py-2;
 }
 
 .settings-nav-item-active {
-  @apply border-blue-200 bg-blue-50 text-blue-900 shadow-sm;
+  @apply bg-blue-50 text-blue-700;
 }
 
 .settings-nav-label {
-  @apply block text-sm font-semibold;
+  @apply block text-[13px] font-medium leading-tight;
 }
 
 .settings-nav-description {
-  @apply mt-1 hidden text-xs text-gray-500 lg:block;
+  @apply mt-0.5 hidden text-[11px] text-gray-400 lg:block;
 }
 
+.settings-nav-item-active .settings-nav-description {
+  @apply text-blue-500/80;
+}
+
+/* —— 右侧内容：直接在 Modal 白底内呼吸，不再叠卡片 —— */
 .settings-panel {
-  @apply min-w-0 min-h-0 flex-1 overflow-y-auto rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6;
+  @apply min-w-0 min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-7 sm:py-6;
 }
 
 .settings-panel > section {
-  @apply space-y-6;
+  @apply space-y-7;
 }
 
-/* 设置区域：扁平分组（无嵌套卡片框），用标题分隔线 + 间距区分，减少「圈框」与多余留白 */
+/* —— 扁平分组：标题用更安静的小帽体 + 灰色，无下划线、无边框包裹 —— */
 .setting-section {
-  @apply pb-1;
+  /* 无 padding/border，靠 section 之间的 space 间距 + 标题区分 */
 }
 
 .setting-section-compact {
@@ -606,137 +620,108 @@ watch(
 }
 
 .setting-section-title {
-  @apply text-sm font-semibold text-gray-900 mb-3 pb-2 border-b border-gray-100;
+  @apply mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-400;
 }
 
 .setting-section-title-standalone {
-  @apply mb-1 border-b-0 pb-0;
+  @apply mb-1;
 }
 
+/* —— 条目：极薄分隔线，更紧的纵向间距 —— */
 .setting-item {
-  @apply flex items-center justify-between py-3;
+  @apply flex items-center justify-between gap-4 py-2.5;
 }
 
 .setting-item-stack {
-  @apply flex-col items-start gap-4;
+  @apply flex-col items-start gap-3;
 }
 
-.setting-item:not(:last-child) {
-  @apply border-b border-gray-100;
+.setting-item + .setting-item {
+  @apply border-t border-gray-100/80;
 }
 
 .setting-item-info {
-  @apply flex-1 mr-4;
+  @apply flex-1 min-w-0;
 }
 
 .setting-item-label {
-  @apply font-medium text-gray-900 mb-1 text-sm;
+  @apply text-[13px] font-medium text-gray-900;
 }
 
 .setting-item-description {
-  @apply text-xs text-gray-600 leading-relaxed;
+  @apply mt-0.5 text-[12px] text-gray-500 leading-relaxed;
 }
 
-/* 按钮样式 */
+/* —— 按钮：体量收敛、不再用大圆角 —— */
 .setting-button {
-  @apply px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2;
+  @apply shrink-0 px-3 py-1.5 rounded-md text-[13px] font-medium transition-colors duration-150
+         focus:outline-none focus:ring-2 focus:ring-offset-1;
 }
 
 .setting-button-secondary {
-  @apply bg-gray-100 text-gray-700 hover:bg-gray-200 focus:ring-gray-500;
+  @apply bg-gray-100 text-gray-700 hover:bg-gray-200 focus:ring-gray-300;
 }
 
 .setting-button-primary {
-  @apply bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500;
+  @apply bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-400;
 }
 
 .setting-button-danger {
-  @apply bg-red-100 text-red-700 hover:bg-red-200 focus:ring-red-500;
+  @apply bg-red-50 text-red-700 hover:bg-red-100 focus:ring-red-300;
 }
 
 .setting-button:disabled {
   @apply opacity-50 cursor-not-allowed;
 }
 
-/* 信息网格样式 */
+/* —— 存储信息：用键值排列代替单独卡片 —— */
 .setting-info-grid {
-  @apply grid grid-cols-1 md:grid-cols-2 gap-4;
+  @apply grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2;
 }
 
 .setting-info-item {
-  @apply bg-white rounded-lg p-4 border border-gray-200;
+  @apply flex items-baseline justify-between gap-3 py-2 border-b border-gray-100/80 last:border-b-0;
 }
 
 .setting-info-label {
-  @apply text-xs font-medium text-gray-600 mb-1;
+  @apply text-[12px] text-gray-500;
 }
 
 .setting-info-value {
-  @apply text-sm text-gray-900 font-mono break-all;
+  @apply text-[13px] text-gray-900 font-mono break-all text-right;
 }
 
+/* —— 版本徽章：缩成轻量 mono 文字，去蓝胶囊 —— */
 .version-pill {
-  @apply inline-flex items-center gap-3 rounded-full border border-blue-100 bg-blue-50 px-4 py-2 text-sm text-blue-900;
+  @apply inline-flex items-baseline gap-2 text-[12px] text-gray-500;
 }
 
 .version-pill-label {
-  @apply text-xs font-medium uppercase tracking-[0.18em] text-blue-500;
+  @apply uppercase tracking-[0.1em];
 }
 
 .version-pill-value {
-  @apply font-semibold;
+  @apply font-mono text-[13px] text-gray-900;
 }
 
+/* —— 通知条：简化 —— */
 .settings-inline-notice {
-  @apply mb-4 rounded-xl border px-4 py-3 text-sm;
+  @apply mb-3 rounded-md px-3 py-2 text-[12px];
 }
 
 .settings-inline-notice-success {
-  @apply border-emerald-200 bg-emerald-50 text-emerald-700;
-}
-
-.settings-inline-notice-error {
-  @apply border-red-200 bg-red-50 text-red-700;
-}
-
-.source-profile-grid {
-  @apply mt-5 grid gap-3 md:grid-cols-2;
-}
-
-.source-profile-loading {
-  @apply rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-500 md:col-span-2;
-}
-
-.setting-inline-caption {
-  @apply mb-5 text-sm font-medium text-slate-700;
-}
-
-.source-profile-card {
-  @apply rounded-2xl border border-slate-200 bg-white p-4 shadow-sm;
-}
-
-.source-profile-title-row {
-  @apply flex items-center justify-between gap-3;
-}
-
-.source-profile-title {
-  @apply text-sm font-semibold text-slate-900;
-}
-
-.source-profile-badge {
-  @apply inline-flex items-center rounded-full px-3 py-1 text-[11px] font-semibold;
-}
-
-.source-profile-badge-ok {
   @apply bg-emerald-50 text-emerald-700;
 }
 
-.source-profile-badge-off {
-  @apply bg-slate-100 text-slate-500;
+.settings-inline-notice-error {
+  @apply bg-red-50 text-red-700;
 }
 
-.source-profile-description {
-  @apply mt-2 text-xs leading-relaxed text-slate-600;
+.source-profile-loading {
+  @apply mt-3 text-[12px] text-gray-400;
 }
 
+.setting-inline-caption {
+  @apply mb-4 text-[13px] font-medium text-gray-700;
+}
 </style>
