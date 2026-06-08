@@ -4,7 +4,7 @@
     class="title-bar window-drag h-12 flex items-center justify-between bg-white/90 backdrop-blur-apple border-b border-gray-200"
     @contextmenu.prevent>
     <!-- 左侧：Logo和标题（macOS 在最左侧显示原生风格红绿灯控件） -->
-    <div data-tauri-drag-region class="flex items-center space-x-3 px-4">
+    <div data-tauri-drag-region class="flex-1 min-w-0 flex items-center space-x-3 px-4">
       <div v-if="isMac" class="traffic-lights flex items-center space-x-2 window-no-drag">
         <button type="button" class="traffic-light traffic-close" :title="getCloseButtonTitle()" @click="closeWindow">
           <span class="traffic-glyph">✕</span>
@@ -24,7 +24,8 @@
     </div>
 
     <!-- 中间：Spotlight 风格的搜索/命令面板入口（让 ⌘K 被看见） -->
-    <div data-tauri-drag-region class="flex-1 flex justify-center px-4">
+    <!-- flex-shrink-0 + 左右两侧 flex-1 等宽 ⇒ 按钮真正落在窗口中线 -->
+    <div data-tauri-drag-region class="flex-shrink-0 flex justify-center">
       <button
         type="button"
         class="cmdk-trigger window-no-drag"
@@ -43,7 +44,7 @@
     </div>
 
     <!-- 右侧：设置按钮（两平台都显示）；最小化/关闭按钮仅在非 macOS 显示 -->
-    <div class="flex items-center space-x-1 px-4 window-no-drag">
+    <div class="flex-1 min-w-0 flex justify-end items-center space-x-1 px-4 window-no-drag">
       <button @click="openSettings"
         class="w-8 h-8 flex items-center justify-center rounded-md hover:bg-gray-200/60 transition-colors duration-200"
         title="设置">
@@ -296,8 +297,7 @@ button:active {
   display: flex;
   align-items: center;
   gap: 8px;
-  width: 100%;
-  max-width: 380px;
+  width: 360px;
   height: 28px;
   padding: 0 8px 0 10px;
   border-radius: 8px;
@@ -338,8 +338,11 @@ button:active {
   display: none;
 }
 
-/* 窗口较窄时只显示短文案 */
+/* 窗口较窄时收窄按钮 + 用短文案 */
 @media (max-width: 900px) {
+  .cmdk-trigger {
+    width: 220px;
+  }
   .cmdk-trigger-text-full {
     display: none;
   }

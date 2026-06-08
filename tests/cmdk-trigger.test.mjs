@@ -32,8 +32,10 @@ describe('标题栏 Spotlight 入口（让 ⌘K 被看见）', () => {
     includes(bar, '@media (max-width: 640px)', '极窄时应仅显示图标 + kbd')
   })
 
-  it('按钮位于中部并保持窗口拖动（仅按钮本身禁用拖动）', () => {
-    includes(bar, 'flex-1 flex justify-center px-4', '中部容器仍是 flex-1 并居中')
-    includes(bar, 'data-tauri-drag-region class="flex-1 flex justify-center', '中部区域保留窗口拖动')
+  it('按钮真正居中到窗口中线：左右两侧 flex-1 等宽，中部 flex-shrink-0', () => {
+    includes(bar, 'flex-1 min-w-0 flex items-center space-x-3 px-4', '左侧应 flex-1 等宽占位')
+    includes(bar, 'flex-1 min-w-0 flex justify-end items-center space-x-1 px-4 window-no-drag', '右侧应 flex-1 等宽占位且 justify-end')
+    includes(bar, 'flex-shrink-0 flex justify-center', '中部应 flex-shrink-0，让按钮真正落在窗口中线')
+    includes(bar, 'data-tauri-drag-region class="flex-shrink-0 flex justify-center"', '中部容器仍保留窗口拖动')
   })
 })
