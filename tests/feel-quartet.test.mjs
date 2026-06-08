@@ -21,17 +21,18 @@ describe('1. 详情页 Hero Backdrop 色彩延伸层', () => {
     includes(detail, 'ambientBackdropUrl', '应有计算属性产出 backdrop URL')
   })
 
-  it('Ambient 层有强模糊 + 饱和 + 向下渐隐遮罩 + 渐入动画', () => {
-    includes(detail, 'blur(72px) saturate(1.55)', '应有强模糊 + 饱和提色调')
+  it('Ambient 层有模糊 + 饱和 + 向下渐隐遮罩 + 渐入动画', () => {
+    includes(detail, 'blur(68px) saturate(1.3)', '应有模糊 + 适度饱和')
     includes(detail, 'mask-image: linear-gradient', '应通过 mask 向下渐隐')
     includes(detail, 'ambient-fade-in', '初次出现应有渐入')
     includes(detail, '@media (prefers-reduced-motion: reduce)', '应尊重系统偏好')
   })
 
-  it('Ambient 层不可点击且 z-index 在内容之下', () => {
+  it('Ambient 层全宽铺底（不被限宽容器裁切）、不可点击、在内容之下', () => {
     includes(detail, 'pointer-events: none', 'Ambient 应不阻塞点击')
     includes(detail, 'z-index: 0', 'Ambient 应在底层')
-    includes(detail, '.detail-page-shell {\n  position: relative;', 'Shell 应 relative 承载 ambient')
+    includes(detail, 'inset: 0 0 auto 0', 'Ambient 应紧贴根容器左右两侧（全宽）')
+    includes(detail, 'overflow-y-auto overflow-x-hidden', '根容器应锁横向溢出，避免 ambient scale 引起 X 滚动条')
   })
 
   it('优先使用 movie.backdrop_path，回退到首张候选剧照', () => {

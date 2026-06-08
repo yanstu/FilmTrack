@@ -1,5 +1,15 @@
 <template>
-  <div class="detail-page-root h-full overflow-auto">
+  <div class="detail-page-root h-full overflow-y-auto overflow-x-hidden">
+    <!-- Hero Ambient 色彩延伸层（全宽铺底，仅在已加载且有影片时渲染） -->
+    <template v-if="!detailState.isLoading && detailState.movie">
+      <div
+        v-if="ambientBackdropUrl"
+        class="detail-ambient"
+        :style="{ backgroundImage: `url(${ambientBackdropUrl})` }"
+      ></div>
+      <div v-else class="detail-ambient detail-ambient-fallback"></div>
+    </template>
+
     <!-- 加载状态 -->
     <div v-if="detailState.isLoading" class="flex items-center justify-center h-full">
       <div class="text-center">
@@ -23,14 +33,6 @@
 
     <!-- 详情内容 -->
     <div v-else class="detail-page-shell">
-      <!-- Hero Ambient 色彩延伸层：让影片色调在 Hero 之外继续延伸 -->
-      <div
-        v-if="ambientBackdropUrl"
-        class="detail-ambient"
-        :style="{ backgroundImage: `url(${ambientBackdropUrl})` }"
-      ></div>
-      <div v-else class="detail-ambient detail-ambient-fallback"></div>
-
       <!-- 顶部横幅 -->
       <DetailHeader
         :movie="detailState.movie"
@@ -198,16 +200,10 @@ const handleQuickSave = async (partial: Partial<Movie>) => {
   animation: spin 1s linear infinite;
 }
 
-/* 详情页根容器：用本影色调延伸到 Hero 之外（电影感） */
+/* 详情页根容器：底色为温和的浅灰，让 ambient 自然叠在上面 */
 .detail-page-root {
   position: relative;
-  background:
-    linear-gradient(
-      to bottom,
-      rgba(248, 250, 252, 0.6) 0%,
-      rgba(255, 255, 255, 0.92) 600px,
-      rgba(248, 250, 252, 1) 100%
-    );
+  background: #f8fafc;
 }
 
 .detail-page-shell {
@@ -217,48 +213,49 @@ const handleQuickSave = async (partial: Partial<Movie>) => {
   z-index: 1;
 }
 
-/* Hero Ambient：取 backdrop 作为虚化色斑，向下渐隐 —— 整页被影片色染过 */
+/* Hero Ambient：全宽铺到根容器，左右无空白；
+   用更短高度 + 更轻饱和度，避免色彩"砸下来"喧宾夺主 */
 .detail-ambient {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 880px;
-  background-position: center top;
+  inset: 0 0 auto 0; /* top right left = 0；bottom auto + 自定高度 */
+  height: 640px;
+  background-position: center 20%;
   background-size: cover;
   background-repeat: no-repeat;
-  filter: blur(72px) saturate(1.55);
-  opacity: 0.4;
-  transform: scale(1.1); /* 模糊后边缘会变软；预先放大避免空白边 */
+  filter: blur(68px) saturate(1.3);
+  opacity: 0.32;
+  transform: scale(1.08);
   -webkit-mask-image: linear-gradient(
     to bottom,
-    rgba(0, 0, 0, 1) 0%,
-    rgba(0, 0, 0, 1) 32%,
-    rgba(0, 0, 0, 0.6) 60%,
+    rgba(0, 0, 0, 0.9) 0%,
+    rgba(0, 0, 0, 0.65) 38%,
+    rgba(0, 0, 0, 0.3) 68%,
     rgba(0, 0, 0, 0) 100%
   );
   mask-image: linear-gradient(
     to bottom,
-    rgba(0, 0, 0, 1) 0%,
-    rgba(0, 0, 0, 1) 32%,
-    rgba(0, 0, 0, 0.6) 60%,
+    rgba(0, 0, 0, 0.9) 0%,
+    rgba(0, 0, 0, 0.65) 38%,
+    rgba(0, 0, 0, 0.3) 68%,
     rgba(0, 0, 0, 0) 100%
   );
   pointer-events: none;
   z-index: 0;
-  animation: ambient-fade-in 0.6s ease-out both;
+  animation: ambient-fade-in 0.5s ease-out both;
 }
 
-/* 无 backdrop 时的优雅兜底色斑（与首页同调蓝紫渐变） */
+/* 无 backdrop 时的优雅兜底色斑（中央椭圆光晕 + 蓝紫调） */
 .detail-ambient-fallback {
   background: radial-gradient(
-    ellipse 1200px 600px at 50% 0%,
-    rgba(59, 130, 246, 0.12) 0%,
-    rgba(167, 139, 250, 0.08) 40%,
-    transparent 75%
+    ellipse 80% 60% at 50% 0%,
+    rgba(59, 130, 246, 0.16) 0%,
+    rgba(167, 139, 250, 0.1) 38%,
+    transparent 72%
   );
   filter: none;
   transform: none;
+  opacity: 1;
+  height: 520px;
 }
 
 @keyframes ambient-fade-in {
@@ -266,7 +263,7 @@ const handleQuickSave = async (partial: Partial<Movie>) => {
     opacity: 0;
   }
   to {
-    opacity: 0.4;
+    opacity: 0.32;
   }
 }
 

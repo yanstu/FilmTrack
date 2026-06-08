@@ -175,62 +175,98 @@ select:focus-visible {
   }
   }
   
-/* 自定义滚动条 - 更优雅的设计 */
+/* —— 滚动条：mac native 风（全平台统一） —— */
+/* 默认完全隐藏轨道、缩窄 thumb；悬停在容器内 thumb 才稍微显形 */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.05);
+  background: transparent;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, rgba(59, 130, 246, 0.2), rgba(59, 130, 246, 0.3));
+  background: transparent;
   border-radius: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  transition: all 0.3s ease;
+  border: 2px solid transparent;
+  background-clip: content-box;
+  transition: background 200ms ease;
+}
+
+/* 鼠标进入「任何带滚动的容器」时，才把 thumb 渐渐显形 */
+:hover > ::-webkit-scrollbar-thumb,
+:hover::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.28);
+  background-clip: content-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, rgba(59, 130, 246, 0.4), rgba(59, 130, 246, 0.5));
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15);
+  background: rgba(15, 23, 42, 0.45);
+  background-clip: content-box;
 }
 
 ::-webkit-scrollbar-corner {
   background: transparent;
 }
 
-/* 火狐浏览器滚动条样式 */
+/* Firefox：与 webkit 一致的最弱视觉重量 */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(59, 130, 246, 0.2) rgba(0, 0, 0, 0.02);
+  scrollbar-color: transparent transparent;
 }
 
-/* macOS：更接近系统的细窄、低调滚动条 */
+:hover {
+  scrollbar-color: rgba(15, 23, 42, 0.28) transparent;
+}
+
+/* macOS：进一步收窄到 7px（贴系统） */
 .platform-mac ::-webkit-scrollbar {
   width: 7px;
   height: 7px;
 }
 
-.platform-mac ::-webkit-scrollbar-track {
+/* —— 显式工具类 .scrollbar-apple ——
+   给希望「滚动条仅悬停可见」的容器，比默认更克制：
+   常态完全不显示，悬停在容器上才出现，并支持 overlay 滚动条（不挤占内容） */
+.scrollbar-apple {
+  scrollbar-gutter: stable;
+  overflow-x: hidden;
+}
+
+.scrollbar-apple::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+.scrollbar-apple::-webkit-scrollbar-thumb {
   background: transparent;
+  background-clip: content-box;
+  border: 2px solid transparent;
+  border-radius: 999px;
 }
 
-.platform-mac ::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.22);
-  border: none;
-  border-radius: 4px;
+.scrollbar-apple:hover::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.26);
+  background-clip: content-box;
 }
 
-.platform-mac ::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.38);
-  box-shadow: none;
+.scrollbar-apple::-webkit-scrollbar-thumb:hover {
+  background: rgba(15, 23, 42, 0.42);
+  background-clip: content-box;
 }
 
-.platform-mac * {
-  scrollbar-color: rgba(0, 0, 0, 0.25) transparent;
+/* 在「彻底无滚动条」的容器上使用：保留滚动能力但完全不显示滚动条 */
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  width: 0;
+  height: 0;
 }
 
 /* macOS：透明窗口 + 圆角，营造原生窗口外观 */
