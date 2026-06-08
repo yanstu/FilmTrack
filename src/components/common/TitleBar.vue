@@ -23,8 +23,24 @@
       <h1 data-tauri-drag-region class="text-lg font-semibold text-gray-900 gradient-text">{{ appTitle }}</h1>
     </div>
 
-    <!-- 中间：占位 -->
-    <div data-tauri-drag-region class="flex-1"></div>
+    <!-- 中间：Spotlight 风格的搜索/命令面板入口（让 ⌘K 被看见） -->
+    <div data-tauri-drag-region class="flex-1 flex justify-center px-4">
+      <button
+        type="button"
+        class="cmdk-trigger window-no-drag"
+        :title="`搜索作品 / 页面 / 动作（${modKeyLabel}K）`"
+        @click="openCommandPalette"
+      >
+        <SearchIcon class="cmdk-trigger-ico" />
+        <span class="cmdk-trigger-text">
+          <span class="cmdk-trigger-text-full">搜索作品 / 页面 / 动作…</span>
+          <span class="cmdk-trigger-text-short">搜索…</span>
+        </span>
+        <span class="cmdk-trigger-kbd">
+          <kbd>{{ modKeyLabel }}</kbd><kbd>K</kbd>
+        </span>
+      </button>
+    </div>
 
     <!-- 右侧：设置按钮（两平台都显示）；最小化/关闭按钮仅在非 macOS 显示 -->
     <div class="flex items-center space-x-1 px-4 window-no-drag">
@@ -60,9 +76,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue';
+import { computed, ref, onMounted, onBeforeUnmount } from 'vue';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { invoke } from '@tauri-apps/api/core';
+import { Search as SearchIcon } from 'lucide-vue-next';
 import StorageService, { StorageKey } from '../../utils/storage';
 import type { AppSettings } from '../../types';
 import { mergeAppSettings } from '../../utils/appSettings';
@@ -75,6 +92,12 @@ const isMac = isMacOS();
 
 // 应用标题
 const appTitle = '影迹 Pro';
+
+// 命令面板入口
+const modKeyLabel = computed(() => (isMac ? '⌘' : 'Ctrl'));
+const openCommandPalette = () => {
+  window.dispatchEvent(new CustomEvent('open-command-palette'));
+};
 
 // 应用设置
 const appSettings = ref<Pick<AppSettings, 'minimizeToTray'>>(mergeAppSettings());
@@ -265,6 +288,97 @@ button:active {
 
   100% {
     transform: rotate(720deg) scale(1);
+  }
+}
+
+/* —— Spotlight 风格的命令面板入口（让 ⌘K 被看见） —— */
+.cmdk-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 380px;
+  height: 28px;
+  padding: 0 8px 0 10px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  color: #6b7280;
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.cmdk-trigger:hover {
+  background: rgba(0, 0, 0, 0.06);
+  border-color: rgba(0, 0, 0, 0.08);
+  color: #374151;
+}
+
+.cmdk-trigger:active {
+  transform: scale(0.98);
+}
+
+.cmdk-trigger-ico {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}
+
+.cmdk-trigger-text {
+  flex: 1;
+  text-align: left;
+  font-size: 12px;
+  line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cmdk-trigger-text-short {
+  display: none;
+}
+
+/* 窗口较窄时只显示短文案 */
+@media (max-width: 900px) {
+  .cmdk-trigger-text-full {
+    display: none;
+  }
+  .cmdk-trigger-text-short {
+    display: inline;
+  }
+}
+
+.cmdk-trigger-kbd {
+  display: inline-flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.cmdk-trigger-kbd kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  color: #6b7280;
+  line-height: 1;
+}
+
+/* 极窄窗口（< 640px）下，连搜索按钮的文字也藏起来，只露图标与 kbd，避免挤掉关闭按钮 */
+@media (max-width: 640px) {
+  .cmdk-trigger {
+    width: auto;
+    padding: 0 8px;
+  }
+  .cmdk-trigger-text {
+    display: none;
   }
 }
 </style>
