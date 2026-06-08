@@ -122,8 +122,8 @@ Thumbs.db
 
 # Tauri specific
 src-tauri/target/
-src-tauri/Cargo.lock
 src-tauri/gen/
+# 注意：src-tauri/Cargo.lock 已纳入版本控制，保证 CI 发布构建依赖可复现（含 tauri-plugin-http 2.5.1）
 
 # Database files
 data/

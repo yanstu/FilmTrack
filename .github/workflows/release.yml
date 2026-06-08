@@ -1,0 +1,71 @@
+name: Release
+
+# 推送形如 v0.5.0 的标签即触发：在 macOS / Windows runner 上构建安装包并发布到 GitHub Releases。
+# 也可在 Actions 页面手动触发（workflow_dispatch）。
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish-tauri:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # macOS：universal 通用包，同时兼容 Intel 与 Apple Silicon
+          - platform: macos-latest
+            args: '--target universal-apple-darwin'
+            rust_targets: aarch64-apple-darwin,x86_64-apple-darwin
+          # Windows x64：生成 .msi 与 NSIS .exe
+          - platform: windows-latest
+            args: ''
+            rust_targets: ''
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_targets }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: ./src-tauri -> target
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build & publish release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'FilmTrackPro ${{ github.ref_name }}'
+          releaseBody: |
+            ### FilmTrackPro ${{ github.ref_name }}
+
+            请根据你的系统下载对应安装包：
+
+            - **macOS**：`.dmg`（universal 通用包，Intel 与 Apple Silicon 通用）
+            - **Windows**：`.msi` 或 `.exe`（任选其一）
+
+            > 应用未做代码签名，首次启动如遇系统安全拦截，请参考 README「安装与首启」一节放行。
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
