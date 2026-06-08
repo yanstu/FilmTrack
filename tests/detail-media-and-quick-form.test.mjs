@@ -33,9 +33,10 @@ describe('TMDb API: getImages（仅剧照；预告片此前已移除）', () => 
 describe('详情页剧照画廊（DetailStillsGallery）', () => {
   const c = read('src/views/Detail/components/DetailStillsGallery.vue')
 
-  it('横向缩略图条 + 灯箱大图 + 键盘左右切换 + Esc 关', () => {
-    includes(c, 'class="stills-row scrollbar-apple"', '应横向滚动缩略图条')
-    includes(c, 'class="lightbox-overlay"', '应有灯箱遮罩')
+  it('Hero 番形主视觉 + 缩略条 + 灯箱大图 + 键盘左右切换 + Esc 关（升级版）', () => {
+    includes(c, 'hero-stage', '应有 Hero 番形作为主视觉')
+    includes(c, 'class="thumb-strip scrollbar-apple"', '应有缩略条横向滚动')
+    includes(c, 'class="lightbox-overlay"', '应保留灯箱遮罩')
     includes(c, "event.key === 'ArrowRight'", '应支持右键下一张')
     includes(c, "event.key === 'ArrowLeft'", '应支持左键上一张')
     includes(c, "event.key === 'Escape'", '应支持 Esc 关闭')
