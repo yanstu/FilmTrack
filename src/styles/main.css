@@ -61,42 +61,103 @@
   --color-border-hover: #4b5563;
 }
 
-/* 全局样式 */
+/* —— A. 去 Web 默认：禁选 / 禁拖 / 无点亮 / 无浏览器焦点环 —— */
 * {
-  /* 禁用文本选择 */
+  /* 默认禁用文本选择（桌面应用风格；具体内容区用 .selectable / input / textarea 放开） */
   -webkit-user-select: none;
   -moz-user-select: none;
   -ms-user-select: none;
   user-select: none;
-  
-  /* 禁用拖拽 */
+
+  /* 禁用拖拽（避免拖图片/链接出现「拖动预览」鬼影） */
   -webkit-user-drag: none;
   -khtml-user-drag: none;
   -moz-user-drag: none;
   -o-user-drag: none;
   user-drag: none;
-  
-  /* 禁用右键菜单 */
-  -webkit-context-menu: none;
+
+  /* 禁用 webkit 触摸高亮（鼠标点击时桌面无此需求） */
+  -webkit-tap-highlight-color: transparent;
 }
 
-/* 允许输入框和文本区域选择文本 */
-input, textarea, [contenteditable="true"] {
-  -webkit-user-select: auto;
-  -moz-user-select: auto;
-  -ms-user-select: auto;
-  user-select: auto;
-  }
-  
-/* 禁用右键菜单 */
-  body {
-  -webkit-context-menu: none;
-  /* 原生字体优先：macOS 取 SF Pro/PingFang，Windows 取 Segoe UI/微软雅黑 */
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, 'PingFang SC', 'Microsoft YaHei', Inter, Roboto, sans-serif;
-  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+/* 移除浏览器默认蓝色焦点轮廓，由下方 :focus-visible 接管为桌面风焦点环 */
+*:focus {
+  outline: none;
+}
+
+/* 内容区放开可选：输入控件、可编辑区、显式声明的 .selectable */
+input,
+textarea,
+select,
+[contenteditable="true"],
+.selectable,
+.selectable * {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+}
+
+/* 图片永远禁拖（即便外层声明 selectable，图片也不该被拖出来） */
+img {
+  -webkit-user-drag: none;
+  user-drag: none;
+  -webkit-touch-callout: none;
+}
+
+/* —— B. 字体与文字渲染（桌面级精修） —— */
+html {
+  /* 默认字号交给各组件控；这里只设备用栈、字距、字形渲染 */
+  font-family:
+    -apple-system, BlinkMacSystemFont, /* macOS / iOS：SF Pro */
+    'Segoe UI Variable Display', 'Segoe UI Variable Text', 'Segoe UI', /* Windows 11 / 10 */
+    system-ui,
+    'PingFang SC', 'Microsoft YaHei',
+    Inter, Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  }
+  text-rendering: optimizeLegibility;
+  /* macOS/iOS 系统字体在 -0.011em 字距下与 native 控件接近 */
+  letter-spacing: -0.011em;
+}
+
+body {
+  font-family: inherit;
+  /* 控制台 / 计数 / 倒计时这类数字默认等宽，避免抖动 */
+  font-variant-numeric: tabular-nums;
+}
+
+/* 标题与正文交回一致字距；显示型大标题适度紧凑 */
+h1, h2, h3 {
+  letter-spacing: -0.022em;
+}
+
+/* —— A.cont 桌面风焦点环：双层软阴影，替代浏览器默认蓝色 outline —— */
+:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.9),
+    0 0 0 4px rgba(59, 130, 246, 0.55);
+  border-radius: inherit;
+}
+/* 输入类控件的焦点态保留原本边框 + 软阴影；其余按通用规则 */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  box-shadow:
+    0 0 0 3px rgba(59, 130, 246, 0.18);
+}
+
+/* —— C. 按钮按下的桌面 native 反馈：极快回弹的 scale —— */
+:where(button, [role="button"], a.btn):active {
+  transform: scale(0.97);
+}
+:where(button, [role="button"]) {
+  /* 让默认 transition 在没显式声明时也有 native 利落感 */
+  transition-property: transform, background-color, color, box-shadow, border-color;
+  transition-duration: 160ms;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
   
 /* 开发环境允许开发者工具 */
 @media (prefers-color-scheme: dark) {

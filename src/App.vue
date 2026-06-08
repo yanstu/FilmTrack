@@ -461,14 +461,27 @@ onBeforeUnmount(() => {
 /* 全局样式 */
 @import './styles/main.css';
 
-/* 页面过渡动画 */
-.page-enter-active,
-.page-leave-active {
-  transition: opacity 0.15s ease;
+/* 页面过渡：桌面应用风 fade-slide（短促、利落，不喧宾夺主） */
+.page-enter-active {
+  transition: opacity 180ms ease-out, transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-
-.page-enter-from,
+.page-leave-active {
+  transition: opacity 120ms ease-in, transform 160ms ease-in;
+}
+.page-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
 .page-leave-to {
   opacity: 0;
+  transform: translateY(-4px);
+}
+
+/* 尊重 prefers-reduced-motion：保留 opacity 过渡但去掉位移 */
+@media (prefers-reduced-motion: reduce) {
+  .page-enter-from,
+  .page-leave-to {
+    transform: none;
+  }
 }
 </style>
