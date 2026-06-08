@@ -3,14 +3,14 @@
     <Dialog as="div" @close="closeModal" class="relative z-50">
       <TransitionChild
         as="template"
-        enter="duration-[220ms] ease-out"
+        enter="duration-300 ease-out"
         enter-from="opacity-0"
         enter-to="opacity-100"
-        leave="duration-[140ms] ease-in"
+        leave="duration-200 ease-in"
         leave-from="opacity-100"
         leave-to="opacity-0"
       >
-        <div class="fixed inset-0 bg-slate-900/35 backdrop-blur-[2px]" />
+        <div class="fixed inset-0 bg-black/30 backdrop-blur-sm" />
       </TransitionChild>
 
       <div class="fixed inset-0 overflow-y-auto">
@@ -19,12 +19,12 @@
         >
           <TransitionChild
             as="template"
-            enter="duration-[260ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
-            enter-from="opacity-0 scale-[0.97] translate-y-2"
-            enter-to="opacity-100 scale-100 translate-y-0"
-            leave="duration-[160ms] ease-[cubic-bezier(0.4,0,0.6,1)]"
-            leave-from="opacity-100 scale-100 translate-y-0"
-            leave-to="opacity-0 scale-[0.985] translate-y-1"
+            enter="duration-300 ease-out"
+            enter-from="opacity-0 scale-95"
+            enter-to="opacity-100 scale-100"
+            leave="duration-200 ease-in"
+            leave-from="opacity-100 scale-100"
+            leave-to="opacity-0 scale-95"
           >
             <DialogPanel
               :class="[
