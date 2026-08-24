@@ -1,3 +1,5 @@
+
+
 # 🎬 FilmTrackPro · 影迹
 
 <div align="center">
@@ -136,7 +138,7 @@ FilmTrackPro（影迹）是一个基于 **Tauri 2 + Vue 3** 的跨平台桌面�
 
 ### 环境要求
 
-- [Node.js](https://nodejs.org/) ≥ 18
+- [Node.js](https://nodejs.org/) ≥ 18（[npm](https://www.npmjs.com/) ≥ 8）
 - [Rust](https://www.rust-lang.org/tools/install)（stable）
 - Tauri 2 各平台系统依赖参见 [官方前置条件](https://tauri.app/start/prerequisites/)
 
